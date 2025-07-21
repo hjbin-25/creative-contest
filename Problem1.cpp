@@ -137,7 +137,7 @@ private:
                     return minDistance;
 
                 float temp;
-                temp = sqrt(abs(i - k) * abs(i - k) + abs(j - l) * abs(j - l));
+                temp = distance(i, j, k, l);
 
                 if (minDistance > temp)
                     minDistance = temp;
@@ -156,7 +156,7 @@ private:
                     return minDistance;
 
                 float temp;
-                temp = sqrt(abs(i - k) * abs(i - k) + abs(j - l) * abs(j - l));
+                temp = distance(i, j, k, l);
 
                 if (minDistance > temp)
                     minDistance = temp;
@@ -173,13 +173,13 @@ private:
                 if (cityGround[i][j] == 'C') {
                     float temp;
                     temp = max(getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1),
-                    getPollutionPower('A') / (sqrt(abs(i - 49) * abs(i - 49) + abs(j - 49) * abs(j - 49)) + 1));
+                    getPollutionPower('A') / (distance(i, j, 49, 49) + 1));
 
                     dustMap[i][j] += int(temp);
                 } else if (cityGround[i][j] == 'F') {
                     float temp;
                     temp = max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
-                    getPollutionPower('A') / (sqrt(abs(i - 49) * abs(i - 49) + abs(j - 49) * abs(j - 49)) + 1));
+                    getPollutionPower('A') / (distance(i, j, 49, 49) + 1));
 
                     cityGround[i][j] += int(temp);
                 } else if (cityGround[i][j] == 'A') {
@@ -192,7 +192,7 @@ private:
                     float temp;
                     temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
                     getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1)), 
-                    getPollutionPower('A') / (sqrt(abs(i - 49) * abs(i - 49) + abs(j - 49) * abs(j - 49)) + 1));
+                    getPollutionPower('A') / (distance(i, j, 49, 49) + 1));
 
                     dustMap[i][j] += int(temp);
                 }
