@@ -46,11 +46,11 @@ private:
     // 각 건물별 미세먼지 영향량
     int getEmission(char c) {
         switch(c) {
-            case 'C': return 40;   // 석탄발전소
-            case 'F': return 7;    // 자동차 공장
-            case 'A': return 1;    // 행정시설
+            case 'C': return 60;   // 석탄발전소
+            case 'F': return 10;    // 자동차 공장
+            case 'A': return 2;    // 행정시설
             case 'H': return 0;    // 병원
-            case 'T': return -10;  // 유원지(완화)
+            case 'T': return -7;  // 유원지(완화)
             case 'M': return -5;   // 목초지(완화)
             case 'E': return 2;    // 기타
             default: return 0;
@@ -118,7 +118,7 @@ private:
     }
 
 
-
+    //TODO: 값 수정 필요
     int getPollutionPower(char c) {
         switch(c) {
             case 'C': return 40;   // 석탄발전소
@@ -174,8 +174,27 @@ private:
                     float temp;
                     temp = max(getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1),
                     getPollutionPower('A') / (sqrt(abs(i - 49) * abs(i - 49) + abs(j - 49) * abs(j - 49)) + 1));
-                } else if (cityGround[i][j] == 'F') {
 
+                    dustMap[i][j] += int(temp);
+                } else if (cityGround[i][j] == 'F') {
+                    float temp;
+                    temp = max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
+                    getPollutionPower('A') / (sqrt(abs(i - 49) * abs(i - 49) + abs(j - 49) * abs(j - 49)) + 1));
+
+                    cityGround[i][j] += int(temp);
+                } else if (cityGround[i][j] == 'A') {
+                    float temp;
+                    temp = max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
+                    getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1));
+
+                    dustMap[i][j] += int(temp);
+                } else {
+                    float temp;
+                    temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
+                    getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1)), 
+                    getPollutionPower('A') / (sqrt(abs(i - 49) * abs(i - 49) + abs(j - 49) * abs(j - 49)) + 1));
+
+                    dustMap[i][j] += int(temp);
                 }
             }
         }
@@ -219,6 +238,16 @@ public:
 
     // 메인 호출 부분
     void usingCity() {
+        cout << averageDustRate << endl;
+
+        int n;
+        cin >> n;
+
+        for (int i = 0; i < n; ++i)
+            spreadDust();
+        
+        averageDustRate = getAverageDustRate();
+
         cout << averageDustRate << endl;
     }
 
