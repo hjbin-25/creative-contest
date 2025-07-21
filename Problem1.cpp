@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <cstdlib>
 using namespace std;
 
 class City {
@@ -112,6 +113,70 @@ private:
                 }
                 dustMap[i][j] -= maxReduction;
                 if (dustMap[i][j] < 0) dustMap[i][j] = 0;
+            }
+        }
+    }
+
+
+
+    int getPollutionPower(char c) {
+        switch(c) {
+            case 'C': return 40;   // 석탄발전소
+            case 'F': return 7;    // 자동차 공장
+            case 'A': return 1;    // 행정시설
+            default: return 0;
+        }
+    }
+
+    double getShortestDistanceCoalPowerFactory(int i, int j) {
+        float minDistance = 10000;
+
+        for (int k = 88; k < 100; ++k) {
+            for (int l = 88; l < 100; ++l) {
+                if (minDistance == 1)
+                    return minDistance;
+
+                float temp;
+                temp = sqrt(abs(i - k) * abs(i - k) + abs(j - l) * abs(j - l));
+
+                if (minDistance > temp)
+                    minDistance = temp;
+            }
+        }
+
+        return minDistance;
+    }
+
+    double getShortestDistanceCarFactory(int i, int j) {
+        float minDistance = 10000;
+
+        for (int k = 78; k <= 81; ++k) {
+            for (int l = 95; l < 100; ++l) {
+                if (minDistance == 1)
+                    return minDistance;
+
+                float temp;
+                temp = sqrt(abs(i - k) * abs(i - k) + abs(j - l) * abs(j - l));
+
+                if (minDistance > temp)
+                    minDistance = temp;
+            }
+        }
+
+        return minDistance;
+    }
+
+    // 미세먼지 확산
+    void spreadDust() {
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                if (cityGround[i][j] == 'C') {
+                    float temp;
+                    temp = max(getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1),
+                    getPollutionPower('A') / (sqrt(abs(i - 49) * abs(i - 49) + abs(j - 49) * abs(j - 49)) + 1));
+                } else if (cityGround[i][j] == 'F') {
+
+                }
             }
         }
     }
