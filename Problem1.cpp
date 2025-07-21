@@ -11,6 +11,7 @@ private:
     int score = 100;
     int coalPower = 300; // 단위는 MW
     float dustMap[100][100] = {20}; // 도시 전역의 미세먼지 지수 단위는 PM 2.5
+    float averageDustRate;
 
     // 도시 전역 출력
     void getCityGround() {
@@ -28,6 +29,17 @@ private:
                 cout << dustMap[i][j] << " ";
             cout << endl;
         }
+    }
+
+    float getAverageDustRate() {
+        float totalDust = 0;
+
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j)
+                totalDust += dustMap[i][j];
+        }
+
+        return totalDust / 10000;
     }
 
     // 각 건물별 미세먼지 영향량
@@ -135,11 +147,14 @@ public:
 
         // 도시 전역의 미세먼지 지수 초기화
         initDustMap();
+
+        // 평균 미세먼지 지수 초기화
+        averageDustRate = getAverageDustRate();
     }
 
     // 메인 호출 부분
     void usingCity() {
-        getCityDust();
+        cout << averageDustRate << endl;
     }
 
 };
