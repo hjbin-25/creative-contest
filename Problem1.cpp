@@ -57,7 +57,7 @@ private:
         }
     }
 
-    // 거리
+    // 거리 계산
     double distance(int x1, int y1, int x2, int y2) {
         return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
     }
@@ -81,7 +81,6 @@ private:
                         if (emission > 0) {
                             double dist = distance(i, j, x, y);
                             if (dist <= 5) {
-                                // 거리 가중치 적용 (가까울수록 영향 큼)
                                 int weightedEmission = (int)(emission * (5 - dist) / 5);
                                 if (weightedEmission > maxEmission) {
                                     maxEmission = weightedEmission;
@@ -117,8 +116,19 @@ private:
         }
     }
 
+    // 미세먼지 확산 함수
+    double getDustSpread(double baseDust, int distance, double decayRate = 0.15) {
+        return baseDust * exp(-decayRate * distance);
+    }
 
-    //TODO: 값 수정 필요
+    // 미세먼지 완화량 계산 함수
+    double getDustAbsorption(double baseAbsorption, double dustDensity, double intensity = 0.005, double spreadAmount = 0) {
+        double rawAbsorption = baseAbsorption * (1.0 + intensity * dustDensity);
+        double limitedAbsorption = std::min(rawAbsorption, spreadAmount * 0.8); // 확산량 대비 최대 80%
+        return limitedAbsorption;
+    }
+
+    // TODO: 값 수정 필요
     int getPollutionPower(char c) {
         switch(c) {
             case 'C': return 40;   // 석탄발전소
@@ -167,34 +177,28 @@ private:
     }
 
     // 미세먼지 확산
+    // spreadDust 함수 일부 수정 예시
     void spreadDust() {
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) { 
+                double dustIncrement = 0;
+
                 if (cityGround[i][j] == 'C') {
-                    int temp;
-                    temp = 20 * coalPower / 100;
-                    dustMap[i][j] += temp;
-                } else if (cityGround[i][j] == 'F') {
-                    float temp;
-                    temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
-                    getPollutionPower('A') / (distance(i, j, 49, 49) * distance(i, j, 49, 49) + 1)),
-                    double(5 * coalPower / 100));
-
-                    dustMap[i][j] += temp;
-                } else if (cityGround[i][j] == 'A') {
-                    float temp;
-                    temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
-                    getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1)),
-                    double(double(1 * coalPower / 100)));
-
-                    dustMap[i][j] += temp;
+                    // 발전소 가동률에 따라 미세먼지 배출량 조정 (coalPower에 이미 가동률 반영됨)
+                    dustIncrement = 20.0 * coalPower / 300.0;
+                    dustMap[i][j] += dustIncrement;
                 } else {
-                    float temp;
-                    temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
-                    getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1)), 
-                    getPollutionPower('A') / (distance(i, j, 49, 49) * distance(i, j, 49, 49) + 1));
+                    // 거리 기반 확산량 계산 (발전소 가동률 비례)
+                    double coalDist = getShortestDistanceCoalPowerFactory(i, j);
+                    double carDist = getShortestDistanceCarFactory(i, j);
+                    double adminDist = distance(i, j, 49, 49);
 
-                    dustMap[i][j] += temp;
+                    double spreadC = getDustSpread(getPollutionPower('C') * coalPower / 300.0, int(coalDist));
+                    double spreadF = getDustSpread(getPollutionPower('F'), int(carDist));
+                    double spreadA = getDustSpread(getPollutionPower('A'), int(adminDist));
+
+                    dustIncrement = max({spreadC, spreadF, spreadA});
+                    dustMap[i][j] += dustIncrement;
                 }
             }
         }
@@ -218,7 +222,7 @@ private:
         }
     }
 
-    //TODO: 값 수정 필요
+    // TODO: 값 수정 필요
     int getMitigationPower(char c) {
         switch(c) {
             case 'T': return 25;   // 유원지
@@ -227,7 +231,7 @@ private:
         }
     }
 
-    //TODO: 값 수정 필요
+    // TODO: 값 수정 필요
     float getMigigationRate(float dustDensity) {
         if (dustDensity > 200)
             return 2;
@@ -241,7 +245,7 @@ private:
             return 0.2;
         else if (dustDensity > 25)
             return 0.05;
-        else;
+        else
             return 0;
     }
 
@@ -287,24 +291,28 @@ private:
     void localMitigateDust() {
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
+                double dustDensity = dustMap[i][j];
+                double reduction = 0;
+
                 if (cityGround[i][j] == 'T') {
-                    float temp;
-                    temp = getMigigationRate(dustMap[i][j]) * getMitigationPower('T');
-
-                    dustMap[i][j] -= int(temp);
+                    double base = getMitigationPower('T');
+                    reduction = getDustAbsorption(base, dustDensity);
                 } else if (cityGround[i][j] == 'M') {
-                    float temp;
-                    temp = getMigigationRate(dustMap[i][j]) * max(getMitigationPower('T') / (getShortestDistanceTomb(i, j) * getShortestDistanceTomb(i, j) + 1),
-                    double(getMitigationPower('M')));
-
-                    dustMap[i][j] -= temp;
+                    double base = max(
+                        static_cast<double>(getMitigationPower('T')) / (pow(getShortestDistanceTomb(i, j), 2) + 1),
+                        static_cast<double>(getMitigationPower('M')) / (pow(getShortestDistanceGrass(i, j), 2) + 1)
+                    );                    
+                    reduction = getDustAbsorption(base, dustDensity);
                 } else {
-                    float temp;
-                    temp = getMigigationRate(dustMap[i][j]) * max(getMitigationPower('T') / (getShortestDistanceTomb(i, j) * getShortestDistanceTomb(i, j) + 1),
-                    getMitigationPower('M') / (getShortestDistanceGrass(i, j) * getShortestDistanceGrass(i, j) + 1));
-
-                    dustMap[i][j] -= temp;
+                    double base = max(
+                        getMitigationPower('T') / (pow(getShortestDistanceTomb(i, j), 2) + 1),
+                        getMitigationPower('M') / (pow(getShortestDistanceGrass(i, j), 2) + 1)
+                    );
+                    reduction = getDustAbsorption(base, dustDensity);
                 }
+
+                dustMap[i][j] -= reduction;
+                if (dustMap[i][j] < 0) dustMap[i][j] = 0;
             }
         }
     }
@@ -320,6 +328,7 @@ public:
 
         cityGround[30][30] = 'H';
         cityGround[49][49] = 'A';
+
         for (int i = 75; i <= 79; ++i) {
             for (int j = 19; j <= 24; ++j)
                 cityGround[i][j] = 'T';
@@ -333,9 +342,8 @@ public:
                 cityGround[i][j] = 'C';
         }
         for (int i = 83; i <= 87; ++i) {
-            for (int j = 83; j <= 87; ++j) {
+            for (int j = 83; j <= 87; ++j)
                 cityGround[i][j] = 'M';
-            }
         }
 
         // 도시 전역의 미세먼지 지수 초기화
@@ -346,8 +354,24 @@ public:
     }
 
     // 메인 호출 부분
+    // usingCity 함수 일부 출력 메시지 개선
     void usingCity() {
-        cout << averageDustRate << endl;
+        int temp = coalPower;
+        coalPower = 300;
+        for (int i = 0; i < 365; ++i) {
+            spreadDust();
+            naturalMitigateDust();
+            localMitigateDust();
+        }
+
+        coalPower = temp;
+
+        averageDustRate = getAverageDustRate();
+
+        cout << "초기 평균 미세먼지: " << averageDustRate << endl;
+        if (coalPower == 300) {
+            cout << "현재 발전소 100% 가동 중, 미세먼지 농도가 높고 거의 일정하게 유지됩니다." << endl;
+        }
 
         int n;
         cout << "시뮬레이션을 몇 일 돌릴건가요? ";
@@ -355,15 +379,18 @@ public:
 
         for (int i = 0; i < n; ++i) {
             spreadDust();
-            naturalMitigateDust();  // 27.1888
-            localMitigateDust();    // 27.1101
+            naturalMitigateDust();
+            localMitigateDust();
         }
         
         averageDustRate = getAverageDustRate();
 
         getCityDust();
 
-        cout << averageDustRate << endl;
+        cout << "최종 평균 미세먼지: " << averageDustRate << endl;
+        if (coalPower < 300) {
+            cout << "발전소 가동률 감소로 미세먼지 농도가 일정 수준 이하로 줄어들었습니다." << endl;
+        }
     }
 
 };
@@ -373,6 +400,8 @@ int main() {
     cout << "발전소 활동률(100, 70, 30): ";
     cin >> coalPower;
 
-    City callingVar = City(300 * coalPower / 100);
+    City callingVar(300 * coalPower / 100);
     callingVar.usingCity();
+
+    return 0;
 }
