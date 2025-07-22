@@ -120,7 +120,6 @@ private:
                         }
                     }
                 }
-                cout << "(" << i << ", " << j << "): " << maxReduction << endl;
                 dustMap[i][j] -= maxReduction;
                 if (dustMap[i][j] < 0) dustMap[i][j] = 0;
             }
@@ -128,7 +127,7 @@ private:
     }
 
     // 미세먼지 확산 함수
-    double getDustSpread(double baseDust, int distance, double decayRate = 0.2) {
+    double getDustSpread(double baseDust, int distance, double decayRate = 0.15) {
         return baseDust * exp(-decayRate * distance);
     }
 
@@ -205,8 +204,8 @@ private:
 
                 if (cityGround[i][j] == 'C') {
                     // 발전소에서 직접 배출 (현재 농도에 따라 조정)
-                    double baseEmission = 2.0 * (coalPower / 300.0);
-                    dustIncrement = baseEmission * (1.0 + 0.0175 * currentDust);
+                    double baseEmission = 2.2 * (coalPower / 300.0);
+                    dustIncrement = baseEmission * (1.0 + 0.02 * currentDust);
                     dustMap[i][j] += dustIncrement;
                 } else {
                     // 거리 기반 확산량 계산
@@ -224,9 +223,9 @@ private:
                     if (currentDust > 46) {
                         dustIncrement *= 0.85; // 높은 농도에서는 확산 효율 감소
                     } else if (currentDust > 25) {
-                        dustIncrement *= 1;
+                        dustIncrement *= 1.2;
                     } else {
-                        dustIncrement *= 1.5;
+                        dustIncrement *= 1.6;
                     }
                     
                     dustMap[i][j] += dustIncrement;
