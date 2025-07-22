@@ -20,6 +20,8 @@ private:
     int coalPower = 300;
     // 시민의 예산 관련 만족도 점수
     float budgetScore = 0;
+    // 시민의 미세먼지 관련 만족도 점수
+    float dustScore = 0;
     // 도시 전역의 미세먼지 지수, 단위는 PM2.5
     float dustMap[100][100];
     // 도시 전역의 펑균 미세먼지 지수, 단위는 PM2.5
@@ -437,19 +439,31 @@ public:
         double revenueRatio = (double)revenuePerMonth / (double)originalRevenuePerMonth * 100.0;
         double reduction = 100.0 - revenueRatio;
 
+        // 도로 및 교통 인프라 예산
         budgetScore += 0.2 * reduction;
+        // 복지 및 사회 서비스 예산
         budgetScore += 0.18 * reduction;
+        // 공공 안전 및 치안 예산
         budgetScore += 0.15 * reduction;
+        // 미세먼지 대응 예산
         budgetScore += 0.12 * reduction;
+        // 행정 운영비 예산
         budgetScore += 0.1 * reduction;
+        // 교육 및 문화 예산
         budgetScore += 0.08 * reduction;
+        // 경제 활성화 및 창업 지원 예산
         budgetScore += 0.06 * reduction;
+        // 환경 보전(미세먼지 제외) 예산
         budgetScore += 0.05 * reduction;
+        // 비상 예산 및 적립금
         budgetScore += 0.03 * reduction;
+        // 도시 개발 및 투자 예산
         budgetScore += 0.03 * reduction;
+
 
         budgetScore = 100 - budgetScore;
 
+        // 가중치 바꿔야 될 듯
         score += budgetScore * 0.7;
     }
 
@@ -505,7 +519,17 @@ public:
             cout << "발전소 30% 가동 - 미세먼지 농도가 크게 개선되었습니다." << endl;
         }
 
-        cout << "점수: " << score << endl;
+        // 미세먼지 지수로 인한 점수 변화
+        // 솔직히 이게 무슨 공식인지 모르겠다, 일단 하라니까 해본다
+        dustScore = max(0.0, 100.0 * exp(-0.03 * averageDustRate));
+        
+        // 가중치 바꿔야 될듯
+        score += dustScore * 0.3;
+
+        // 일단 점수 출력 해봄
+        cout << "미세먼지 점수: " << dustScore << endl;
+        cout << "예산 점수: " << budgetScore << endl;
+        cout << "총 점수: " << score << endl;
         
         char showMap;
         // 보기 안 예뻐서 선택적 출력으로 바꿈
