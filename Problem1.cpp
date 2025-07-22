@@ -176,14 +176,16 @@ private:
                     dustMap[i][j] += temp;
                 } else if (cityGround[i][j] == 'F') {
                     float temp;
-                    temp = max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
-                    getPollutionPower('A') / (distance(i, j, 49, 49) * distance(i, j, 49, 49) + 1));
+                    temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
+                    getPollutionPower('A') / (distance(i, j, 49, 49) * distance(i, j, 49, 49) + 1)),
+                    double(5 * coalPower / 100));
 
                     dustMap[i][j] += int(temp);
                 } else if (cityGround[i][j] == 'A') {
                     float temp;
-                    temp = max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
-                    getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1));
+                    temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
+                    getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1)),
+                    double(double(1 * coalPower / 100)));
 
                     dustMap[i][j] += int(temp);
                 } else {
@@ -214,7 +216,11 @@ private:
 
     // 지역 미세먼지 완화
     void localMitigateDust() {
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
 
+            }
+        }
     }
 
 public:
