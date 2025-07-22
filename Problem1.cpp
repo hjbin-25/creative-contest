@@ -204,12 +204,16 @@ private:
     void naturalMitigateDust() {
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
-                if (dustMap[i][j] > 100)
-                    dustMap[i][j] = dustMap[i][j] * 0.8 + 1;
+                if (dustMap[i][j] > 200)
+                    dustMap[i][j] = dustMap[i][j] * 0.65;
+                else if (dustMap[i][j] > 150)
+                    dustMap[i][j] = dustMap[i][j] * 0.75;
+                else if (dustMap[i][j] > 100)
+                    dustMap[i][j] = dustMap[i][j] * 0.8;
                 else if (dustMap[i][j] > 50)
-                    dustMap[i][j] = dustMap[i][j] * 0.9 + 1;
+                    dustMap[i][j] = dustMap[i][j] * 0.97;
                 else if (dustMap[i][j] > 25)
-                    dustMap[i][j] = dustMap[i][j] * 0.95 + 1;              
+                    dustMap[i][j] = dustMap[i][j] * 0.99;              
             }
         }
     }
@@ -225,24 +229,18 @@ private:
 
     //TODO: 값 수정 필요
     float getMigigationRate(float dustDensity) {
-        if (dustDensity > 100)
+        if (dustDensity > 200)
+            return 2;
+        else if (dustDensity > 150)
+            return 1.5;
+        else if (dustDensity > 100)
             return 1;
         else if (dustDensity > 75)
-            return 0.75;
+            return 0.6;
         else if (dustDensity > 50)
-            return 0.5;
+            return 0.2;
         else if (dustDensity > 25)
-            return 0.15;
-        else if (dustDensity > 24)
-            return 0.14;
-        else if (dustDensity > 23)
-            return 0.135;
-        else if (dustDensity > 22)
-            return 0.13;
-        else if (dustDensity > 21)
-            return 0.125;
-        else if (dustDensity > 20)
-            return 0.1;
+            return 0.05;
         else;
             return 0;
     }
@@ -352,12 +350,13 @@ public:
         cout << averageDustRate << endl;
 
         int n;
+        cout << "시뮬레이션을 몇 일 돌릴건가요? ";
         cin >> n;
 
         for (int i = 0; i < n; ++i) {
             spreadDust();
-            naturalMitigateDust();  // 28.4243
-            localMitigateDust();    // 28.0523
+            naturalMitigateDust();  // 27.1888
+            localMitigateDust();    // 27.1101
         }
         
         averageDustRate = getAverageDustRate();
