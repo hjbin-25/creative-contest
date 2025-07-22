@@ -180,21 +180,21 @@ private:
                     getPollutionPower('A') / (distance(i, j, 49, 49) * distance(i, j, 49, 49) + 1)),
                     double(5 * coalPower / 100));
 
-                    dustMap[i][j] += int(temp);
+                    dustMap[i][j] += temp;
                 } else if (cityGround[i][j] == 'A') {
                     float temp;
                     temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
                     getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1)),
                     double(double(1 * coalPower / 100)));
 
-                    dustMap[i][j] += int(temp);
+                    dustMap[i][j] += temp;
                 } else {
                     float temp;
                     temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
                     getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1)), 
                     getPollutionPower('A') / (distance(i, j, 49, 49) * distance(i, j, 49, 49) + 1));
 
-                    dustMap[i][j] += int(temp);
+                    dustMap[i][j] += temp;
                 }
             }
         }
@@ -205,20 +205,108 @@ private:
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
                 if (dustMap[i][j] > 100)
-                    dustMap[i][j] = int(dustMap[i][j] * 0.80) + 1;
+                    dustMap[i][j] = dustMap[i][j] * 0.8 + 1;
                 else if (dustMap[i][j] > 50)
-                    dustMap[i][j] = int(dustMap[i][j] * 0.90) + 1;
+                    dustMap[i][j] = dustMap[i][j] * 0.9 + 1;
                 else if (dustMap[i][j] > 25)
-                    dustMap[i][j] = int(dustMap[i][j] * 0.95) + 1;              
+                    dustMap[i][j] = dustMap[i][j] * 0.95 + 1;              
             }
         }
+    }
+
+    //TODO: 값 수정 필요
+    int getMitigationPower(char c) {
+        switch(c) {
+            case 'T': return 25;   // 유원지
+            case 'M': return 10;    // 목초지
+            default: return 0;
+        }
+    }
+
+    //TODO: 값 수정 필요
+    float getMigigationRate(float dustDensity) {
+        if (dustDensity > 100)
+            return 1;
+        else if (dustDensity > 75)
+            return 0.75;
+        else if (dustDensity > 50)
+            return 0.5;
+        else if (dustDensity > 25)
+            return 0.15;
+        else if (dustDensity > 24)
+            return 0.14;
+        else if (dustDensity > 23)
+            return 0.135;
+        else if (dustDensity > 22)
+            return 0.13;
+        else if (dustDensity > 21)
+            return 0.125;
+        else if (dustDensity > 20)
+            return 0.1;
+        else;
+            return 0;
+    }
+
+    double getShortestDistanceTomb(int i, int j) {
+        float minDistance = 10000;
+
+        for (int k = 75; k <= 79; ++k) {
+            for (int l = 19; l < 24; ++l) {
+                if (minDistance == 1)
+                    return minDistance;
+
+                float temp;
+                temp = distance(i, j, k, l);
+
+                if (minDistance > temp)
+                    minDistance = temp;
+            }
+        }
+
+        return minDistance;
+    }
+
+    double getShortestDistanceGrass(int i, int j) {
+        float minDistance = 10000;
+
+        for (int k = 83; k <= 87; ++k) {
+            for (int l = 83; l < 87; ++l) {
+                if (minDistance == 1)
+                    return minDistance;
+
+                float temp;
+                temp = distance(i, j, k, l);
+
+                if (minDistance > temp)
+                    minDistance = temp;
+            }
+        }
+
+        return minDistance;
     }
 
     // 지역 미세먼지 완화
     void localMitigateDust() {
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
+                if (cityGround[i][j] == 'T') {
+                    float temp;
+                    temp = getMigigationRate(dustMap[i][j]) * getMitigationPower('T');
 
+                    dustMap[i][j] -= int(temp);
+                } else if (cityGround[i][j] == 'M') {
+                    float temp;
+                    temp = getMigigationRate(dustMap[i][j]) * max(getMitigationPower('T') / (getShortestDistanceTomb(i, j) * getShortestDistanceTomb(i, j) + 1),
+                    double(getMitigationPower('M')));
+
+                    dustMap[i][j] -= temp;
+                } else {
+                    float temp;
+                    temp = getMigigationRate(dustMap[i][j]) * max(getMitigationPower('T') / (getShortestDistanceTomb(i, j) * getShortestDistanceTomb(i, j) + 1),
+                    getMitigationPower('M') / (getShortestDistanceGrass(i, j) * getShortestDistanceGrass(i, j) + 1));
+
+                    dustMap[i][j] -= temp;
+                }
             }
         }
     }
@@ -268,7 +356,8 @@ public:
 
         for (int i = 0; i < n; ++i) {
             spreadDust();
-            naturalMitigateDust();
+            naturalMitigateDust();  // 28.4243
+            localMitigateDust();    // 28.0523
         }
         
         averageDustRate = getAverageDustRate();
