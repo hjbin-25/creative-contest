@@ -11,9 +11,15 @@ private:
     // 도시 전역
     char cityGround[100][100];
     // 점수: 나중에 실행할 대안을 이 점수를 기반으로 평가할거임
-    int score = 100;
+    int score = 0;
+    // 원래 수익
+    long long originalRevenuePerMonth = (24 * 300 - 300) * 30 * 7000 - 150000000;
+    // 도시의 전력 판매로 인한 수익
+    long long revenuePerMonth = 0;
     // 하루에 생산 시킬 전력, 단위는 MW, 100%->300, 70%->210, 30%->90
     int coalPower = 300;
+    // 시민의 예산 관련 만족도 점수
+    float budgetScore = 0;
     // 도시 전역의 미세먼지 지수, 단위는 PM2.5
     float dustMap[100][100];
     // 도시 전역의 펑균 미세먼지 지수, 단위는 PM2.5
@@ -419,6 +425,32 @@ public:
 
         // 평균 미세먼지 지수 초기화
         averageDustRate = getAverageDustRate();
+
+        // 기본 도시의 월 예산 계산
+        originalRevenuePerMonth = (24 * 300 - 300) * 30 * 7000 - 150000000;
+
+        // 도시의 월 예산 계산
+        // 하루에 사용하는 전력인 300MWh/day 제외하고, 실제 수입인 7% 계산, 편의상 한 달을 30일로 가정하고, 1MWh/day == 100,000원으로 가정, 부채 상환액은 150,000,000으로 가정
+        revenuePerMonth = (coalPower * 24 - 300) * 30 * 7000 - 150000000;
+
+        // 점수 계산 - 실수 기반
+        double revenueRatio = (double)revenuePerMonth / (double)originalRevenuePerMonth * 100.0;
+        double reduction = 100.0 - revenueRatio;
+
+        budgetScore += 0.2 * reduction;
+        budgetScore += 0.18 * reduction;
+        budgetScore += 0.15 * reduction;
+        budgetScore += 0.12 * reduction;
+        budgetScore += 0.1 * reduction;
+        budgetScore += 0.08 * reduction;
+        budgetScore += 0.06 * reduction;
+        budgetScore += 0.05 * reduction;
+        budgetScore += 0.03 * reduction;
+        budgetScore += 0.03 * reduction;
+
+        budgetScore = 100 - budgetScore;
+
+        score += budgetScore * 0.7;
     }
 
     // 메인 호출 부분
@@ -472,6 +504,8 @@ public:
         } else if (coalPower == 90) {
             cout << "발전소 30% 가동 - 미세먼지 농도가 크게 개선되었습니다." << endl;
         }
+
+        cout << "점수: " << score << endl;
         
         char showMap;
         // 보기 안 예뻐서 선택적 출력으로 바꿈
