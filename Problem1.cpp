@@ -169,19 +169,17 @@ private:
     // 미세먼지 확산
     void spreadDust() {
         for (int i = 0; i < 100; ++i) {
-            for (int j = 0; j < 100; ++j) {
+            for (int j = 0; j < 100; ++j) { 
                 if (cityGround[i][j] == 'C') {
-                    float temp;
-                    temp = max(getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1),
-                    getPollutionPower('A') / (distance(i, j, 49, 49) + 1));
-
-                    dustMap[i][j] += int(temp);
+                    int temp;
+                    temp = 20 * coalPower / 100;
+                    dustMap[i][j] += temp;
                 } else if (cityGround[i][j] == 'F') {
                     float temp;
                     temp = max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
-                    getPollutionPower('A') / (distance(i, j, 49, 49) + 1));
+                    getPollutionPower('A') / (distance(i, j, 49, 49) * distance(i, j, 49, 49) + 1));
 
-                    cityGround[i][j] += int(temp);
+                    dustMap[i][j] += int(temp);
                 } else if (cityGround[i][j] == 'A') {
                     float temp;
                     temp = max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
@@ -192,12 +190,31 @@ private:
                     float temp;
                     temp = max(max(getPollutionPower('C') / (getShortestDistanceCoalPowerFactory(i, j) * getShortestDistanceCoalPowerFactory(i, j) + 1),
                     getPollutionPower('F') / (getShortestDistanceCarFactory(i, j) * getShortestDistanceCarFactory(i, j) + 1)), 
-                    getPollutionPower('A') / (distance(i, j, 49, 49) + 1));
+                    getPollutionPower('A') / (distance(i, j, 49, 49) * distance(i, j, 49, 49) + 1));
 
                     dustMap[i][j] += int(temp);
                 }
             }
         }
+    }
+
+    // 자연적 미세먼지 완화
+    void naturalMitigateDust() {
+        for (int i = 0; i < 100; ++i) {
+            for (int j = 0; j < 100; ++j) {
+                if (dustMap[i][j] > 100)
+                    dustMap[i][j] = int(dustMap[i][j] * 0.80) + 1;
+                else if (dustMap[i][j] > 50)
+                    dustMap[i][j] = int(dustMap[i][j] * 0.90) + 1;
+                else if (dustMap[i][j] > 25)
+                    dustMap[i][j] = int(dustMap[i][j] * 0.95) + 1;              
+            }
+        }
+    }
+
+    // 지역 미세먼지 완화
+    void localMitigateDust() {
+
     }
 
 public:
@@ -243,10 +260,14 @@ public:
         int n;
         cin >> n;
 
-        for (int i = 0; i < n; ++i)
+        for (int i = 0; i < n; ++i) {
             spreadDust();
+            naturalMitigateDust();
+        }
         
         averageDustRate = getAverageDustRate();
+
+        getCityDust();
 
         cout << averageDustRate << endl;
     }
