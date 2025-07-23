@@ -26,6 +26,10 @@ private:
     float dustMap[100][100];
     // 도시 전역의 펑균 미세먼지 지수, 단위는 PM2.5
     float averageDustRate;
+    // 도시 전역의 누적 입원자 수
+    int totalHospitalizationPeople = 0;
+    // 도시 전역의 누적 사망자 수
+    int totalDeathPeople = 0;
 
     // 도시 전역 출력
     void getCityGround() {
@@ -328,6 +332,7 @@ private:
                     return minDistance;
 
                 float temp;
+                // 최적화
                 temp = distance(i, j, k, l);
 
                 // 음수 방지
@@ -349,6 +354,7 @@ private:
                     return minDistance;
 
                 float temp;
+                // 최적화
                 temp = distance(i, j, k, l);
 
                 // 음수 방지
@@ -390,6 +396,28 @@ private:
                 if (dustMap[i][j] < 0)
                     dustMap[i][j] = 0;
             }
+        }
+    }
+
+    // 입원자 수 계산
+    void calculateHospitalizationPeople() {
+        averageDustRate = getAverageDustRate();
+
+        if (averageDustRate <= 35) {
+            return;
+        } else {
+            totalHospitalizationPeople += 3 * (averageDustRate - 35);
+        }
+    }
+
+    // 사망자 수 계산
+    void calculateDeathPeople() {
+        averageDustRate = getAverageDustRate();
+
+        if (averageDustRate <= 35) {
+            return;
+        } else {
+            totalDeathPeople += round(0.2 * (averageDustRate - 35));
         }
     }
 
@@ -460,7 +488,6 @@ public:
         // 도시 개발 및 투자 예산
         budgetScore += 0.03 * reduction;
 
-
         budgetScore = 100 - budgetScore;
 
         // 가중치 바꿔야 될 듯
@@ -475,17 +502,22 @@ public:
         
         cout << "=== 초기 상태 (100% 가동 1년 시뮬레이션) ===" << endl;
         for (int month = 0; month < 12; ++month) {
+            // 확산
             monthlySpreadDust();
+            // 자연적 완화
             monthlyNaturalMitigateDust();
+            // 지형적 완화
             monthlyLocalMitigateDust();
         }
 
+        // 평균 미세먼지 농도 확인
         averageDustRate = getAverageDustRate();
         cout << "초기 평균 미세먼지 (100% 1년 후): " << averageDustRate << endl;
         
         // 다시 선택한 가동률로 재설정
         coalPower = initialCoalPower;
         
+        // 사실상 본문 코드
         cout << "\n=== 현재 설정 ===" << endl;
         cout << "발전소 가동률: " << (coalPower * 100 / 300) << "%" << endl;
         
@@ -498,6 +530,10 @@ public:
             monthlySpreadDust();
             monthlyNaturalMitigateDust();
             monthlyLocalMitigateDust();
+            // 입원자 수 계산
+            calculateHospitalizationPeople();
+            // 사망자 수 계산
+            calculateDeathPeople();
             
             // 3개월 마다 결과 출력
             if ((month + 1) % 3 == 0) {
@@ -525,6 +561,11 @@ public:
         
         // 가중치 바꿔야 될듯
         score += dustScore * 0.3;
+
+        cout << totalHospitalizationPeople << " " << totalDeathPeople << endl;
+
+        score -= totalHospitalizationPeople * 0.05;
+        score -= totalDeathPeople * 2;
 
         // 일단 점수 출력 해봄
         cout << "미세먼지 점수: " << dustScore << endl;
