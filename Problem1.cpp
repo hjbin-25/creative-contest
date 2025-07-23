@@ -1,21 +1,19 @@
-#include <iostream>     // 입출력 가져옴
-#include <cmath>        // sqrt, pow, max 가져옴
-#include <algorithm>    // 이거 왜 있는지 모르겠는데 불안해서 나둘거임
-#include <cstdlib>      // 2222222
-#include <fstream>      // 파일 입출력 메서드 가져옴
+#include <iostream>     // 입출력 함수(cout, cin 등) 가져오는 용도
+#include <cmath>        // 수학관련 함수(round, pow, exp 등) 가져오는 용도
+#include <fstream>      // 파일 입출력 메서드 가져오는 용도
 using namespace std;
 
-// 도시를 구현
+// 도시 구현을 위한 클래스
 class City {
-// 일단 접근 막음
+// 잘못된 값 수정을 방지하기 위한 private 부분
 private:
     // 도시 전역
     char cityGround[100][100];
-    // 점수: 나중에 실행할 대안을 이 점수를 기반으로 평가할거임
+    // 점수: 실행할 대안을 이 점수를 기반으로 평가함
     int score = 0;
-    // 점수 기본값: 예산 관련 점수만 들어가 있는거
+    // 점수 기본값: 예산 관련 점수만 들어가 있는 것
     int defaultScore = 0;
-    // 원래 수익
+    // 원래 수익: 100% 가동 기준 100점으로 책정
     long long originalRevenuePerMonth = (24 * 300 - 300) * 30 * 7000 - 150000000;
     // 도시의 전력 판매로 인한 수익
     long long revenuePerMonth = 0;
@@ -38,9 +36,8 @@ private:
     // 도시 전역의 1달간 사망자 수
     int monthDeathPeople = 0;
 
-    // 도시 전역 출력
+    // 도시 전역 출력, 데이터 확인 용도
     void getCityGround() {
-        // 예쁘게 찍는 건 포기함, 어짜피 출력할일 거의 없어
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j)
                 cout << cityGround[i][j];
@@ -48,9 +45,8 @@ private:
         }
     }
 
-    // 도시 전역의 미세먼지 농도 출력
+    // 도시 전역의 미세먼지 농도 출력, 데이터 확인 용도
     void getCityDust() {
-        // 2222222
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j)
                 cout << dustMap[i][j] << " ";
@@ -58,13 +54,12 @@ private:
         }
     }
 
-    // 평균 미세먼지 지수 리턴
+    // 평균 미세먼지 지수 반환
     float getAverageDustRate() {
         float totalDust = 0;
 
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j)
-                // 제발 오버플로우만 나지 마라
                 totalDust += dustMap[i][j];
         }
 
@@ -74,7 +69,6 @@ private:
     // 각 건물별 미세먼지 영향량
     float getBaseEmission(char c) {
         switch(c) {
-            // 나중에 고칠 수도 있음, 신중하게 결정!!
             case 'C': return 10.0f;    // 석탄발전소
             case 'F': return 3.0f;     // 자동차 공장
             case 'A': return 0.5f;     // 행정시설
@@ -82,13 +76,13 @@ private:
             case 'T': return -1.0f;    // 유원지
             case 'M': return -0.5f;    // 목초지
             case 'E': return 0.3f;     // 기타
-            default: return 0.0f;      // 예외는 없음, 그냥 형식상 붙임
+            default: return 0.0f;
         }
     }
 
-    // 거리 계산
+    // 거리 계산, 최적화 때문에 넣음
     double distance(int x1, int y1, int x2, int y2) {
-        // 단순 피타고라스 공식
+        // 대각선 길이 구해줌
         return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
     }
 
@@ -97,7 +91,7 @@ private:
         // 기본 배경 미세먼지 농도를 32로 설정
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
-                // 기본적으로 32정도라고 함, 어짜피 나중에 1년 돌리고 시작할거라 상관 없긴함
+                // 기본적으로 32정도라고 함
                 dustMap[i][j] = 32.0f;
             }
         }
@@ -114,23 +108,21 @@ private:
             }
         }
         
-        // 주변 영향 계산 (오염원) - 영향 범위와 강도 조정
+        // 주변 영향 계산
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
-                // 혹시나 죽을까봐 -1로 초기화 해둠
                 float maxAddition = -1;
 
-                // 시간복잡도 망해서 터질까봐 쫄리긴 함
                 for (int x = max(0, i - 8); x <= min(99, i + 8); ++x) {
                     for (int y = max(0, j - 8); y <= min(99, j + 8); ++y) {
                         float emission = getBaseEmission(cityGround[x][y]);
-
+                        
+                        // 예외 조건 방지
                         if (emission > 0) {
-                            // 거리 부분 최적화, 아마도?
+                            // 거리 부분 최적화
                             double dist = distance(i, j, x, y);
 
                             if (dist <= 8 && dist > 0) {
-                                // 너무 약해서 20% 추가로 줌
                                 float weightedEmission = emission * (8 - dist) * 1.2;
 
                                 if (weightedEmission > maxAddition) {
@@ -144,21 +136,19 @@ private:
             }
         }
 
-        // 주변 영향 계산 (완화원) - 완화 효과 증가
+        // 주변 영향 계산
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) {
-                // 2222222
                 float maxReduction = -1;
 
-                // 2222222222
                 for (int x = max(0, i - 4); x <= min(99, i + 4); ++x) {
                     for (int y = max(0, j - 4); y <= min(99, j + 4); ++y) {
                         float emission = getBaseEmission(cityGround[x][y]);
                         if (emission < 0) {
                             double dist = distance(i, j, x, y);
 
+                            // 예외 조건 방지
                             if (dist <= 4 && dist > 0) {
-                                // 얘는 반대로 너무 강해서 40% 줄임
                                 float weightedReduction = -emission * (4 - dist) * 0.6f;
 
                                 if (weightedReduction > maxReduction) {
@@ -178,26 +168,23 @@ private:
 
     // 미세먼지 확산 함수
     double getDustSpread(double baseDust, int distance, double decayRate = 0.15) {
-        // 지수 감수 함수라는데 솔직히 잘 모르겠음, 애들이 이거 쓰래서 만들긴 함
+        // 지수 감수 함수
         return baseDust * exp(-decayRate * distance);
-        // 결과는 잘 나오니 됬음
     }
 
     // 미세먼지 완화량 계산 함수
     double getDustAbsorption(double baseAbsorption, double dustDensity, double intensity = 0.01) {
-        // 가중치 떡칠
         double efficiencyMultiplier = 1.0 + intensity * dustDensity;
         return baseAbsorption * efficiencyMultiplier;
     }
 
-    // 발전소 오염력 (가동률 반영)
+    // 발전소 오염력
     double getPollutionPower(char c) {
         switch(c) {
-            // 제발 값만 잘 나와라
             case 'C': return 6.0 * (coalPower / 300.0);     // 석탄발전소(가동률 비례하여 증가)
             case 'F': return 1.2;                           // 자동차 공장
             case 'A': return 0.15;                          // 행정시설
-            default: return 0;                              // 예외는 없지만 형식상 달아줌
+            default: return 0;
         }
     }
 
@@ -244,7 +231,7 @@ private:
         return minDistance;
     }
 
-    // 월별 미세먼지 확산 (30일 기준)
+    // 월별 미세먼지 확산, 1달 기준
     void monthlySpreadDust() {
         float tempDustMap[100][100];
         
@@ -255,14 +242,12 @@ private:
             }
         }
         
-        // 시간복잡도, O(2 * 100^2) => 상당히 안 좋긴함
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j) { 
                 double dustIncrement = 0;
                 double currentDust = tempDustMap[i][j];
 
                 if (cityGround[i][j] == 'C') {
-                    // 발전소에서 직접 배출, 가중치 조정 매우 중요함!!
                     double baseEmission = 2.2 * (coalPower / 300.0);
                     dustIncrement = baseEmission * (1.0 + 0.02 * currentDust);
                     dustMap[i][j] += dustIncrement;
@@ -281,7 +266,6 @@ private:
                     dustIncrement = max({spreadC, spreadF, spreadA});
                     
                     // 현재 농도에 따른 확산 효율 조정
-                    // 이 또한 매우 예민한 값임
                     if (currentDust > 46) {
                         dustIncrement *= 0.85;
                     } else if (currentDust > 25) {
@@ -303,7 +287,6 @@ private:
                 float currentDust = dustMap[i][j];
                 
                 // 농도별 자연 감소율
-                // 일단 내 기준 최적의 값인 듯
                 if (currentDust > 56) {
                     dustMap[i][j] *= 0.98;
                 } else if (currentDust > 46) {
@@ -322,7 +305,6 @@ private:
     // 완화 시설 효과
     double getMitigationPower(char c) {
         switch(c) {
-            // 값 수정 하면 좋을 듯
             case 'T': return 1.5;            // 유원지
             case 'M': return 0.5;            // 목초지
             default: return 0;
@@ -380,7 +362,6 @@ private:
                 double dustDensity = dustMap[i][j];
                 double reduction = 0;
 
-                // 저 비율 절대 절대 절대 건들면 안됨!!!!!!!
                 // 수식은 (완화량) / ((거리)^2 + 1)
                 // 0으로 나누는거 막을려고 1 더해줌
                 if (cityGround[i][j] == 'T') {
@@ -436,7 +417,6 @@ private:
         score = defaultScore;
 
         // 미세먼지 지수로 인한 점수 변화
-        // 솔직히 이게 무슨 공식인지 모르겠다, 일단 하라니까 해본다
         dustScore = max(0.0, 100.0 * exp(-0.03 * averageDustRate));
         
         // 가중치 바꿔야 될듯
@@ -533,7 +513,6 @@ public:
 
         budgetScore = 100 - budgetScore;
 
-        // 가중치 바꿔야 될 듯
         score += budgetScore * 0.7;
         defaultScore = budgetScore * 0.7;
     }
@@ -588,14 +567,6 @@ public:
 
         cout << "\n=== 최종 결과 ===" << endl;
         cout << "최종 평균 미세먼지: " << averageDustRate << endl;
-        
-        // if (coalPower == 300) {
-        //     cout << "발전소 100% 가동 - 미세먼지 농도가 높게 유지됩니다." << endl;
-        // } else if (coalPower == 210) {
-        //     cout << "발전소 70% 가동 - 미세먼지 농도가 점진적으로 개선되고 있습니다." << endl;
-        // } else if (coalPower == 90) {
-        //     cout << "발전소 30% 가동 - 미세먼지 농도가 크게 개선되었습니다." << endl;
-        // }
 
         // 총 점수
         cout << "총 점수: " << score << endl;
