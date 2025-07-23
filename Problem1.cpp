@@ -12,6 +12,8 @@ private:
     char cityGround[100][100];
     // 점수: 나중에 실행할 대안을 이 점수를 기반으로 평가할거임
     int score = 0;
+    // 점수 기본값: 예산 관련 점수만 들어가 있는거
+    int defaultScore = 0;
     // 원래 수익
     long long originalRevenuePerMonth = (24 * 300 - 300) * 30 * 7000 - 150000000;
     // 도시의 전력 판매로 인한 수익
@@ -28,8 +30,12 @@ private:
     float averageDustRate;
     // 도시 전역의 누적 입원자 수
     int totalHospitalizationPeople = 0;
+    // 도시 전역의 1달간 입원자 수
+    int monthHospitalizationPeople = 0;
     // 도시 전역의 누적 사망자 수
     int totalDeathPeople = 0;
+    // 도시 전역의 1달간 사망자 수
+    int monthDeathPeople = 0;
 
     // 도시 전역 출력
     void getCityGround() {
@@ -406,7 +412,8 @@ private:
         if (averageDustRate <= 35) {
             return;
         } else {
-            totalHospitalizationPeople += 3 * (averageDustRate - 35);
+            monthHospitalizationPeople = 3 * (averageDustRate - 35);
+            totalHospitalizationPeople += monthHospitalizationPeople;
         }
     }
 
@@ -417,8 +424,25 @@ private:
         if (averageDustRate <= 35) {
             return;
         } else {
-            totalDeathPeople += round(0.2 * (averageDustRate - 35));
+            monthDeathPeople = round(0.2 * (averageDustRate - 35));
+            totalDeathPeople += monthDeathPeople;
         }
+    }
+
+    // 점수 계산
+    void setScore() {
+        // 점수 초기화
+        score = defaultScore;
+
+        // 미세먼지 지수로 인한 점수 변화
+        // 솔직히 이게 무슨 공식인지 모르겠다, 일단 하라니까 해본다
+        dustScore = max(0.0, 100.0 * exp(-0.03 * averageDustRate));
+        
+        // 가중치 바꿔야 될듯
+        score += dustScore * 0.3;
+
+        score -= monthHospitalizationPeople * 0.05;
+        score -= monthDeathPeople * 2;
     }
 
 public:
@@ -492,6 +516,7 @@ public:
 
         // 가중치 바꿔야 될 듯
         score += budgetScore * 0.7;
+        defaultScore = budgetScore * 0.7;
     }
 
     // 메인 호출 부분
@@ -527,49 +552,32 @@ public:
 
         cout << "\n=== 시뮬레이션 진행 ===" << endl;
         for (int month = 0; month < months; ++month) {
+            setScore();
             monthlySpreadDust();
             monthlyNaturalMitigateDust();
             monthlyLocalMitigateDust();
-            // 입원자 수 계산
             calculateHospitalizationPeople();
-            // 사망자 수 계산
             calculateDeathPeople();
             
-            // 3개월 마다 결과 출력
-            if ((month + 1) % 3 == 0) {
-                float currentAvg = getAverageDustRate();
-                cout << (month + 1) << "개월 후 평균 미세먼지: " << currentAvg << endl;
-            }
+            // // 3개월 마다 결과 출력
+            // if ((month + 1) % 3 == 0) {
+            //     float currentAvg = getAverageDustRate();
+            //     cout << (month + 1) << "개월 후 평균 미세먼지: " << currentAvg << endl;
+            // }
         }
-        
-        averageDustRate = getAverageDustRate();
 
         cout << "\n=== 최종 결과 ===" << endl;
         cout << "최종 평균 미세먼지: " << averageDustRate << endl;
         
-        if (coalPower == 300) {
-            cout << "발전소 100% 가동 - 미세먼지 농도가 높게 유지됩니다." << endl;
-        } else if (coalPower == 210) {
-            cout << "발전소 70% 가동 - 미세먼지 농도가 점진적으로 개선되고 있습니다." << endl;
-        } else if (coalPower == 90) {
-            cout << "발전소 30% 가동 - 미세먼지 농도가 크게 개선되었습니다." << endl;
-        }
+        // if (coalPower == 300) {
+        //     cout << "발전소 100% 가동 - 미세먼지 농도가 높게 유지됩니다." << endl;
+        // } else if (coalPower == 210) {
+        //     cout << "발전소 70% 가동 - 미세먼지 농도가 점진적으로 개선되고 있습니다." << endl;
+        // } else if (coalPower == 90) {
+        //     cout << "발전소 30% 가동 - 미세먼지 농도가 크게 개선되었습니다." << endl;
+        // }
 
-        // 미세먼지 지수로 인한 점수 변화
-        // 솔직히 이게 무슨 공식인지 모르겠다, 일단 하라니까 해본다
-        dustScore = max(0.0, 100.0 * exp(-0.03 * averageDustRate));
-        
-        // 가중치 바꿔야 될듯
-        score += dustScore * 0.3;
-
-        cout << totalHospitalizationPeople << " " << totalDeathPeople << endl;
-
-        score -= totalHospitalizationPeople * 0.05;
-        score -= totalDeathPeople * 2;
-
-        // 일단 점수 출력 해봄
-        cout << "미세먼지 점수: " << dustScore << endl;
-        cout << "예산 점수: " << budgetScore << endl;
+        // 총 점수
         cout << "총 점수: " << score << endl;
         
         char showMap;
