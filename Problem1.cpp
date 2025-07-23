@@ -2,6 +2,7 @@
 #include <cmath>        // sqrt, pow, max 가져옴
 #include <algorithm>    // 이거 왜 있는지 모르겠는데 불안해서 나둘거임
 #include <cstdlib>      // 2222222
+#include <fstream>      // 파일 입출력 메서드 가져옴
 using namespace std;
 
 // 도시를 구현
@@ -445,6 +446,24 @@ private:
         score -= monthDeathPeople * 2;
     }
 
+    // 데이터 기록
+    void recordData(int currentMonth) {
+        // 추가 모드
+        ofstream dustFile("dust.data", ios::app);
+
+        if (dustFile.is_open()) {
+            dustFile << currentMonth << " " << averageDustRate << endl;
+            dustFile.close();
+        }
+
+        ofstream scoreFile("score.data", ios::app);
+
+        if (scoreFile.is_open()) {
+            scoreFile << currentMonth << " " << score << endl;
+            scoreFile.close();
+        }
+    }
+
 public:
     // 생성자
     City(int coalPower) : coalPower(coalPower) {
@@ -558,6 +577,7 @@ public:
             monthlyLocalMitigateDust();
             calculateHospitalizationPeople();
             calculateDeathPeople();
+            recordData(month + 1);
             
             // // 3개월 마다 결과 출력
             // if ((month + 1) % 3 == 0) {
