@@ -9,9 +9,9 @@ private:
     // 도시 전역
     char cityGround[100][100];
     // 점수: 실행할 대안을 이 점수 기반으로 평가
-    int score = 0;
+    float score = 0;
     // 점수 기본값: 예산 관련 점수만
-    int defaultScore = 0;
+    float defaultScore = 0;
     // 기존 수익: 100% 가동 기준 100점으로 책정
     long long originalRevenuePerMonth = (24 * 300 - 300) * 30 * 7000 - 150000000;
     // 도시의 전력 판매 수익
@@ -596,12 +596,12 @@ int main() {
 
     switch (choice) {
     case 1: coalPower = 300; break;
-    case 2: coalPower = 210; break;
-    case 3: coalPower = 90; break;
-    default:
-        cout << "잘못된 입력입니다. 기본값 100%로 설정합니다." << endl;
-        coalPower = 300;
-        break;
+        case 2: coalPower = 210; break;
+        case 3: coalPower = 90; break;
+        default:
+            cout << "잘못된 입력입니다. 기본값 100%로 설정합니다." << endl;
+            coalPower = 300;
+            break;
     }
 
     City callingVar(coalPower);
