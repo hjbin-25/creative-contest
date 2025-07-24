@@ -3,48 +3,20 @@
 #include <fstream> 
 using namespace std;
 
-// 도시 구현
 class City {
 private:
-    // 도시 전역
     char cityGround[100][100];
-    // 점수: 실행할 대안을 이 점수 기반으로 평가
     float score = 0;
-    // 점수 기본값: 예산 관련 점수만
-    float defaultScore = 0;
-    // 기존 수익: 100% 가동 기준 100점으로 책정
-    long long originalRevenuePerMonth = (24 * 300 - 300) * 30 * 7000 - 150000000;
-    // 도시의 전력 판매 수익
-    long long revenuePerMonth = 0;
-    // 하루에 생산 시킬 전력, 단위는 MW, 100%->300, 70%->210, 30%->90
-    int coalPower = 300;
-    // 시민의 예산 관련 만족도 점수
-    float budgetScore = 0;
-    // 시민의 미세먼지 관련 만족도 점수
+    float facilityScore = 0;
     float dustScore = 0;
-    // 도시 전역의 미세먼지 지수, 단위는 PM2.5
     float dustMap[100][100];
-    // 도시 전역의 펑균 미세먼지 지수, 단위는 PM2.5
     float averageDustRate;
-    // 도시 전역의 누적 입원자 수
     int totalHospitalizationPeople = 0;
-    // 도시 전역의 1달간 입원자 수
     int monthHospitalizationPeople = 0;
-    // 도시 전역의 누적 사망자 수
     int totalDeathPeople = 0;
-    // 도시 전역의 1달간 사망자 수
     int monthDeathPeople = 0;
+    int coalPower = 300;
 
-    // 도시 전역 출력, 데이터 확인
-    void getCityGround() {
-        for (int i = 0; i < 100; ++i) {
-            for (int j = 0; j < 100; ++j)
-                cout << cityGround[i][j];
-            cout << endl;
-        }
-    }
-
-    // 도시 전역의 미세먼지 농도 출력, 데이터 확인
     void getCityDust() {
         for (int i = 0; i < 100; ++i) {
             for (int j = 0; j < 100; ++j)
@@ -53,15 +25,11 @@ private:
         }
     }
 
-    // 평균 미세먼지 지수 반환
     float getAverageDustRate() {
         float totalDust = 0;
-
-        for (int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 100; ++i)
             for (int j = 0; j < 100; ++j)
                 totalDust += dustMap[i][j];
-        }
-
         return totalDust / 10000;
     }
 
@@ -392,58 +360,75 @@ private:
         }
     }
 
-    // 입원자 수 계산
     void calculateHospitalizationPeople() {
         averageDustRate = getAverageDustRate();
-
-        if (averageDustRate <= 35) {
-            return;
-        }
-        else {
+        if (averageDustRate > 35) {
             monthHospitalizationPeople = 3 * (averageDustRate - 35);
             totalHospitalizationPeople += monthHospitalizationPeople;
         }
     }
 
-    // 사망자 수 계산
     void calculateDeathPeople() {
         averageDustRate = getAverageDustRate();
-
-        if (averageDustRate <= 35) {
-            return;
-        }
-        else {
+        if (averageDustRate > 35) {
             monthDeathPeople = round(0.2 * (averageDustRate - 35));
             totalDeathPeople += monthDeathPeople;
         }
     }
 
-    // 점수 계산
+    double getHospitalScore(double powerRatio) {
+        // a, b: 시그모이드 조절 파라미터
+        double a = 15.0;  // 기울기 조절
+        double b = 0.7;   // 임계 가동률
+        double sigmoid = 1.0 / (1.0 + exp(-a * (powerRatio - b)));
+        return 30.0 * sigmoid;
+    }    
+
+    double getAdminScore(double powerRatio) {
+        return 20.0 * sqrt(powerRatio);
+    }    
+
+    double getFactoryScore(double powerRatio) {
+        double a = 20.0;
+        double b = 0.75;
+        double sigmoid = 1.0 / (1.0 + exp(-a * (powerRatio - b)));
+        return 30.0 * sigmoid;
+    } 
+    
+    double getParkScore(double powerRatio) {
+        double k = 6.0;
+        double base = log(1 + k * powerRatio) / log(1 + k);
+        return 20.0 * sqrt(base);
+    }    
+
     void setScore() {
-        // 점수 초기화
-        score = defaultScore;
-
-        // 미세먼지 지수로 인한 점수 변화
+        score = 0;
         dustScore = max(0.0, 100.0 * exp(-0.03 * averageDustRate));
-
         score += dustScore * 0.3;
+
+        double powerRatio = (double)coalPower / 300.0; // 발전소 가동률 (0.0 ~ 1.0)
+
+        double hospitalScore = getHospitalScore(powerRatio);
+        double adminScore = getAdminScore(powerRatio);
+        double factoryScore = getFactoryScore(powerRatio);
+        double parkScore = getParkScore(powerRatio);
+
+        facilityScore = hospitalScore + adminScore + factoryScore + parkScore;
+
+        score += facilityScore * 0.7;
 
         score -= monthHospitalizationPeople * 0.05;
         score -= monthDeathPeople * 2;
     }
 
-    // 데이터 기록
     void recordData(int currentMonth) {
-        // 추가 모드
         ofstream dustFile("dust.data", ios::app);
-
         if (dustFile.is_open()) {
             dustFile << currentMonth << " " << averageDustRate << endl;
             dustFile.close();
         }
 
         ofstream scoreFile("score.data", ios::app);
-
         if (scoreFile.is_open()) {
             scoreFile << currentMonth << " " << score << endl;
             scoreFile.close();
@@ -452,104 +437,47 @@ private:
 
 public:
     City(int coalPower) : coalPower(coalPower) {
-        // 도시 전역의 건물 초기화
-        for (int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 100; ++i)
             for (int j = 0; j < 100; ++j)
                 cityGround[i][j] = 'E';
-        }
 
         cityGround[30][30] = 'H';
         cityGround[49][49] = 'A';
 
-        for (int i = 75; i <= 79; ++i) {
+        for (int i = 75; i <= 79; ++i)
             for (int j = 19; j <= 24; ++j)
                 cityGround[i][j] = 'T';
-        }
-        for (int i = 78; i <= 81; ++i) {
+
+        for (int i = 78; i <= 81; ++i)
             for (int j = 95; j <= 99; ++j)
                 cityGround[i][j] = 'F';
-        }
-        for (int i = 88; i <= 99; ++i) {
+
+        for (int i = 88; i <= 99; ++i)
             for (int j = 88; j <= 99; ++j)
                 cityGround[i][j] = 'C';
-        }
-        for (int i = 83; i <= 87; ++i) {
+
+        for (int i = 83; i <= 87; ++i)
             for (int j = 83; j <= 87; ++j)
                 cityGround[i][j] = 'M';
-        }
 
-        // 도시 전역의 미세먼지 지수 초기화
         initDustMap();
-
-        // 평균 미세먼지 지수 초기화
         averageDustRate = getAverageDustRate();
-
-        // 기본 도시의 월 예산 계산
-        originalRevenuePerMonth = (24 * 300 - 300) * 30 * 7000 + 400000000 - 150000000;
-
-        // 도시의 월 예산 계산
-        // 하루에 사용하는 전력인 300MWh/day 제외하고, 실제 수입인 7% 계산
-        // 편의상 한 달을 30일로 가정
-        // 1MWh/day == 100,000원으로 가정
-        // 기타 수입의 총액은 400,000,000으로 가정
-        // 부채 상환액은 150,000,000으로 가정
-        revenuePerMonth = (coalPower * 24 - 300) * 30 * 7000 + 400000000 - 150000000;
-
-        // 점수 계산(실수)
-        double revenueRatio = (double)revenuePerMonth / (double)originalRevenuePerMonth * 100.0;
-        double reduction = 100.0 - revenueRatio;
-
-        // 도로 및 교통 인프라 예산
-        budgetScore += 0.2 * reduction;
-        // 복지 및 사회 서비스 예산
-        budgetScore += 0.18 * reduction;
-        // 공공 안전 및 치안 예산
-        budgetScore += 0.15 * reduction;
-        // 미세먼지 대응 예산
-        budgetScore += 0.12 * reduction;
-        // 행정 운영비 예산
-        budgetScore += 0.1 * reduction;
-        // 교육 및 문화 예산
-        budgetScore += 0.08 * reduction;
-        // 경제 활성화 및 창업 지원 예산
-        budgetScore += 0.06 * reduction;
-        // 환경 보전(미세먼지 제외) 예산
-        budgetScore += 0.05 * reduction;
-        // 비상 예산 및 적립금
-        budgetScore += 0.03 * reduction;
-        // 도시 개발 및 투자 예산
-        budgetScore += 0.03 * reduction;
-
-        budgetScore = 100 - budgetScore;
-
-        score += budgetScore * 0.7;
-        defaultScore = budgetScore * 0.7;
     }
 
-    // 메인 호출 부분
     void usingCity() {
-        // 처음에 100%로 1년 돌리고 시작
         int initialCoalPower = coalPower;
         coalPower = 300;
-
         cout << "=== 초기 상태 (100% 가동 1년 시뮬레이션) ===" << endl;
         for (int month = 0; month < 12; ++month) {
-            // 확산
             monthlySpreadDust();
-            // 자연적 완화
             monthlyNaturalMitigateDust();
-            // 지형적 완화
             monthlyLocalMitigateDust();
         }
-
-        // 평균 미세먼지 농도 확인
+        recordData(0);
         averageDustRate = getAverageDustRate();
         cout << "초기 평균 미세먼지 (100% 1년 후): " << averageDustRate << endl;
 
-        // 다시 선택한 가동률로 재설정
         coalPower = initialCoalPower;
-
-        // 실질적 본문 코드
         cout << "\n=== 현재 설정 ===" << endl;
         cout << "발전소 가동률: " << (coalPower * 100 / 300) << "%" << endl;
 
@@ -565,21 +493,19 @@ public:
             monthlyLocalMitigateDust();
             calculateHospitalizationPeople();
             calculateDeathPeople();
-            recordData(month + 1);
+            if ((month + 1) % 6 == 0)
+                recordData(month + 1);
         }
 
-        // 시뮬레이션 결과
         cout << "\n=== 최종 결과 ===" << endl;
         cout << "최종 평균 미세먼지: " << averageDustRate << endl;
-
         cout << "총 점수: " << score << endl;
 
         char showMap;
         cout << "미세먼지 농도 지도를 출력할까요? (y/n): ";
         cin >> showMap;
-        if (showMap == 'y' || showMap == 'Y') {
+        if (showMap == 'y' || showMap == 'Y')
             getCityDust();
-        }
     }
 };
 
@@ -596,14 +522,14 @@ int main() {
 
     switch (choice) {
     case 1: coalPower = 300; break;
-        case 2: coalPower = 210; break;
-        case 3: coalPower = 90; break;
-        default:
-            cout << "잘못된 입력입니다. 기본값 100%로 설정합니다." << endl;
-            coalPower = 300;
-            break;
+    case 2: coalPower = 210; break;
+    case 3: coalPower = 90; break;
+    default:
+        cout << "잘못된 입력입니다. 기본값 100%로 설정합니다." << endl;
+        coalPower = 300;
+        break;
     }
 
-    City callingVar(coalPower);
-    callingVar.usingCity();
+    City citySim(coalPower);
+    citySim.usingCity();
 }
