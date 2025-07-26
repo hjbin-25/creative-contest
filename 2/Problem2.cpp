@@ -19,9 +19,9 @@ private:
     int totalCharging;
 
     int currentHour;
-    double totalCost, totalPower;
+    int totalCost, totalPower;
 
-    static constexpr double coolingConstant = 0.0003;  // 냉각 계수 (1/s)
+    static constexpr double coolingConstant = 0.001;  // 냉각 계수 (1/s)
     static constexpr double mass = 15.0;              // kg
     static constexpr double specificHeat = 900.0;     // J/kg·°C
 
@@ -137,13 +137,11 @@ private:
         }
     }
 
-    double updateTemperature(double deltaTimeSec, double T_old, double Tamb, double powerW, double k) {
-        // deltaTimeSec: 시간 간격 초 단위
-        // powerW: W (J/s)
-        double heatIncrease = powerW * deltaTimeSec; // J
-        double deltaTempIncrease = heatIncrease / (mass * specificHeat);
-        double coolingEffect = k * (T_old - Tamb) * deltaTimeSec;
-        return T_old + deltaTempIncrease - coolingEffect;
+    double calcTemperature(double deltaTime, double T0, double Tamb, double energyJ, double k) {
+        double expTerm = exp(-k * deltaTime * 3600);  // deltaTime(시간) → 초 단위
+        double deltaT = energyJ / (mass * specificHeat);  // ΔT = Q / (mc)
+        double T1 = T0 + deltaT;
+        return Tamb + (T1 - Tamb) * expTerm;  // 냉각 고려된 최종 온도
     }
 
     double getExternalTemperature(int hour) {
@@ -165,8 +163,8 @@ private:
         }
     }
 
-    double getHeatGenerationRate(double nodePower = 1.25, double efficiency = 0.15) {
-        return nodePower * efficiency * 1000; // kW → W (J/s)
+    double getHeatGeneration(double nodePower = 1.25, double efficiency = 0.15) {
+        return nodePower * efficiency * 3600 * 1000; // kWh → J
     }
 
 public:
@@ -184,26 +182,35 @@ public:
         currentTamb = getExternalTemperature(currentHour);
 
         for (int i = 0; i < totalNodes; i++) {
+            // 배터리 감소
             if (!isCharging[i] && !isCooling[i]) {
                 nodeBattery[i] -= 4.17;
                 if (nodeBattery[i] < 0) nodeBattery[i] = 0;
             }
 
+            // 온도 계산 (냉각 중 아닐 때)
             if (!isCooling[i]) {
-                double deltaTimeSec = (currentHour - lastTempTime[i]) * 3600;
-                if (deltaTimeSec >= 3600) {
-                    double powerRate = getHeatGenerationRate();
-                    nodeTemp[i] = updateTemperature(deltaTimeSec, nodeTemp[i], currentTamb, powerRate, coolingConstant);
+                double deltaTime = currentHour - lastTempTime[i];
+                if (deltaTime >= 1.0) {
+                    double Q = getHeatGeneration(i);
+                    nodeTemp[i] = calcTemperature(deltaTime, nodeTemp[i], currentTamb, Q, coolingConstant);
                     lastTempTime[i] = currentHour;
                 }
             }
 
+            // 냉각 처리 (유지 시간 3시간으로 연장, 점진적 온도 하락)
             if (isCooling[i]) {
-                if (++coolingTime[i] >= 1) {
-                    nodeTemp[i] = 40.0;
-                    lastTempTime[i] = currentHour;
+                coolingTime[i]++;
+                // 점진적 냉각 (예: 매시간 10도씩 내려가도록)
+                nodeTemp[i] -= 10.0;
+                if (nodeTemp[i] < 40.0) nodeTemp[i] = 40.0;
+
+                if (coolingTime[i] >= 3) {
                     isCooling[i] = false;
                     coolingTime[i] = 0;
+                    lastTempTime[i] = currentHour;
+
+                    // 충전소 점유 해제
                     for (int j = 0; j < totalCharging; j++) {
                         if (chargingX[j] == nodeX[i] && chargingY[j] == nodeY[i]) {
                             isOccupied[j] = false;
@@ -213,11 +220,16 @@ public:
                 }
             }
 
+            // 충전 처리 (유지 시간 3시간으로 연장)
             if (isCharging[i]) {
-                if (++chargingTime[i] >= 1) {
+                chargingTime[i]++;
+                if (chargingTime[i] >= 3) {
                     nodeBattery[i] = 100.0;
                     isCharging[i] = false;
                     chargingTime[i] = 0;
+                    lastTempTime[i] = currentHour;
+
+                    // 충전소 점유 해제
                     for (int j = 0; j < totalCharging; j++) {
                         if (chargingX[j] == nodeX[i] && chargingY[j] == nodeY[i]) {
                             isOccupied[j] = false;
@@ -227,6 +239,7 @@ public:
                 }
             }
 
+            // 냉각 혹은 충전 시작 조건
             if (nodeTemp[i] >= 70 && !isCooling[i] && !isCharging[i]) {
                 int chargingIdx = findNearestCharging(i);
                 if (chargingIdx != -1) {
@@ -235,8 +248,8 @@ public:
                     isOccupied[chargingIdx] = true;
                     isCooling[i] = true;
                     coolingTime[i] = 0;
-                    totalCost += 625;
-                    totalPower += 4.167;
+                    totalCost += 61;
+                    totalPower += 0.4;
                 }
             } else if (nodeBattery[i] <= 30 && !isCharging[i] && !isCooling[i]) {
                 int chargingIdx = findNearestCharging(i);
@@ -303,6 +316,6 @@ public:
 
 int main() {
     DataCenter dc;
-    dc.runSimulation(12);
+    dc.runSimulation(24);
     return 0;
 }
