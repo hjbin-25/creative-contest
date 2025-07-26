@@ -14,6 +14,7 @@ private:
     int nodeY[240];      // 노드 y좌표
     double nodeBattery[240]; // 노드 전력 (소수점 지원)
     double nodeTemp[240];    // 노드 온도 (소수점 지원)
+    double lastTempTime[240]; // 마지막 온도 계산 시점
     bool isCharging[240];    // 충전 중인지
     bool isCooling[240];     // 냉각 중인지
     int chargingTime[240];   // 충전 시간 (시간)
@@ -31,6 +32,10 @@ private:
     int currentHour;      // 현재 시간
     double totalCost;     // 총 비용 (원)
     double totalPower;    // 총 전력 사용량 (kWh)
+    
+    // 온도 계산 상수
+    static constexpr double TAMB = 25.0;  // 주변 온도 (℃)
+    static constexpr double K = 0.1;      // 냉각 계수 (1/시간)
     
     void makeGround() {
         // 1. 모든 곳을 풀밭으로
@@ -112,6 +117,7 @@ private:
                             nodeY[totalNodes] = j;
                             nodeBattery[totalNodes] = 100.0;  // 100% 전력
                             nodeTemp[totalNodes] = 60.0;      // 60도
+                            lastTempTime[totalNodes] = 0.0;   // 온도 계산 시점 초기화
                             isCharging[totalNodes] = false;
                             isCooling[totalNodes] = false;
                             chargingTime[totalNodes] = 0;
@@ -175,11 +181,24 @@ private:
         }
     }
     
-    // 온도 계산 (간단한 상승 모델)
-    double calculateTemperature(double T0) {
-        // 2-5도 사이에서 랜덤하게 상승
-        double tempRise = 2.0 + (rand() % 4); // 2, 3, 4, 5도 중 랜덤
-        return T0 + tempRise;
+    // 물리적 온도 계산 함수
+    double calcTemperature(double t, double T0, double Tamb, double P, double k) {
+        double expTerm = exp(-k * t);
+        double Tt = Tamb + (P / k) * (1 - expTerm) + (T0 - Tamb) * expTerm;
+        return Tt;
+    }
+    
+    // 노드별 열 발생량 계산 (2-5도/시간 상승을 위한 P값 계산)
+    double getHeatGeneration(int nodeIdx) {
+        // 2-5도 사이의 랜덤한 상승률을 위해 P값을 조정
+        // P = k * (목표온도상승률 + (T0 - Tamb) * k)
+        double targetRise = 2.0 + (rand() % 4); // 2, 3, 4, 5도 중 랜덤
+        double currentTemp = nodeTemp[nodeIdx];
+        
+        // 1시간 후 targetRise만큼 올라가도록 P값 계산
+        // 근사적으로: 새온도 ≈ 현재온도 + P - k*(현재온도 - Tamb)
+        double P = targetRise + K * (currentTemp - TAMB);
+        return P;
     }
     
 public:
@@ -202,9 +221,17 @@ public:
                 if (nodeBattery[i] < 0) nodeBattery[i] = 0;
             }
             
-            // 2. 온도 상승 - 냉각 중이 아닐 때만
+            // 2. 온도 계산 - 냉각 중이 아닐 때만
             if (!isCooling[i]) {
-                nodeTemp[i] = calculateTemperature(nodeTemp[i]);
+                double currentTime = currentHour;
+                double deltaTime = currentTime - lastTempTime[i];
+                
+                if (deltaTime >= 1.0) { // 1시간마다 온도 계산
+                    double P = getHeatGeneration(i); // 열 발생량
+                    double newTemp = calcTemperature(1.0, nodeTemp[i], TAMB, P, K);
+                    nodeTemp[i] = newTemp;
+                    lastTempTime[i] = currentTime;
+                }
             }
             
             // 3. 냉각 처리 (1시간 소요)
@@ -212,6 +239,7 @@ public:
                 coolingTime[i]++;
                 if (coolingTime[i] >= 1) {  // 1시간 완료
                     nodeTemp[i] = 40.0;  // 40도로 냉각 완료
+                    lastTempTime[i] = currentHour; // 온도 계산 시점 리셋
                     isCooling[i] = false;
                     coolingTime[i] = 0;
                     // 충전소에서 나가기
@@ -316,7 +344,7 @@ public:
         
         for (int h = 1; h <= hours; h++) {
             simulateOneHour();
-            if (h % 1 == 0) {  // 6시간마다 상태 출력
+            if (h % 1 == 0) {  // 1시간마다 상태 출력
                 showStatus();
             }
         }
