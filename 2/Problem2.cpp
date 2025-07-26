@@ -19,14 +19,13 @@ private:
     int totalCharging;
 
     int currentHour;
-    double totalCost;    // 비용은 소수점 처리 위해 double로 변경
-    double totalPower;   // 전력량도 double
+    double totalCost, totalPower;
+    double totalRevenue; // ✅ 행사 수익
 
-    static constexpr double coolingConstant = 0.001;  // 냉각 계수 (1/s)
-    static constexpr double mass = 15.0;              // kg
-    static constexpr double specificHeat = 900.0;     // J/kg·°C
+    static constexpr double coolingConstant = 0.001;
+    static constexpr double mass = 15.0;
+    static constexpr double specificHeat = 900.0;
 
-    // 시간별 외부 평균 기온 (00시부터 23시까지)
     const double hourlyTemperatures[24] = {
         13.0, 12.5, 12.0, 11.5, 11.0, 11.0,
         12.0, 13.5, 15.0, 17.0, 19.0, 21.0,
@@ -147,10 +146,10 @@ private:
     }
 
     double calcTemperature(double deltaTime, double T0, double Tamb, double energyJ, double k) {
-        double expTerm = exp(-k * deltaTime * 3600);  // deltaTime(시간) → 초 단위
-        double deltaT = energyJ / (mass * specificHeat);  // ΔT = Q / (mc)
+        double expTerm = exp(-k * deltaTime * 3600);
+        double deltaT = energyJ / (mass * specificHeat);
         double T1 = T0 + deltaT;
-        return Tamb + (T1 - Tamb) * expTerm;  // 냉각 고려된 최종 온도
+        return Tamb + (T1 - Tamb) * expTerm;
     }
 
     double getExternalTemperature(int hour) {
@@ -158,13 +157,12 @@ private:
     }
 
     double getHeatGeneration(double nodePower = 1.25, double efficiency = 0.15) {
-        return nodePower * efficiency * 3600 * 1000; // kWh → J
+        return nodePower * efficiency * 3600 * 1000;
     }
 
     double calculateCoolingCost(double nodeTemp, double externalTemp) {
-        double deltaT = nodeTemp - externalTemp;
-        if (deltaT < 0) deltaT = 0;
-        const double costPerDegree = 0.525;  // 15원/°C 기준 조정 가능
+        double deltaT = max(0.0, nodeTemp - externalTemp);
+        const double costPerDegree = 0.7;
         return deltaT * costPerDegree;
     }
 
@@ -176,20 +174,26 @@ public:
         currentHour = 0;
         totalCost = 0.0;
         totalPower = 0.0;
+        totalRevenue = 0.0;
     }
 
     void simulateOneHour() {
         currentHour++;
         currentTamb = getExternalTemperature(currentHour);
 
+        bool fireflyShowTime = ((currentHour % 24) >= 20 && (currentHour % 24) <= 21);
+        if (fireflyShowTime) {
+            int attendees = 100 + rand() % 51;  // 100~150명
+            double ticketPrice = 1000.0;
+            totalRevenue += attendees * ticketPrice;
+        }
+
         for (int i = 0; i < totalNodes; i++) {
-            // 배터리 감소
             if (!isCharging[i] && !isCooling[i]) {
                 nodeBattery[i] -= 4.17;
-                if (nodeBattery[i] < 0) nodeBattery[i] = 0;
+                nodeBattery[i] = max(0.0, nodeBattery[i]);
             }
 
-            // 온도 계산 (냉각 중 아닐 때)
             if (!isCooling[i]) {
                 double deltaTime = currentHour - lastTempTime[i];
                 if (deltaTime >= 1.0) {
@@ -199,23 +203,24 @@ public:
                 }
             }
 
-            // 냉각 처리 (유지 시간 3시간, 점진적 온도 하락)
             if (isCooling[i]) {
-                coolingTime[i]++;
-                nodeTemp[i] -= 10.0;
-                if (nodeTemp[i] < 40.0) nodeTemp[i] = 40.0;
-
-                // 냉각 비용 및 전력 소모 반영
-                double cost = calculateCoolingCost(nodeTemp[i], currentTamb);
-                totalCost += cost;
-                totalPower += cost / 150.0;  // 150원/kWh 전기요금 가정
+                if (fireflyShowTime) {
+                    coolingTime[i]++;
+                    nodeTemp[i] -= 2.0;
+                    nodeTemp[i] = max(40.0, nodeTemp[i]);
+                } else {
+                    coolingTime[i]++;
+                    nodeTemp[i] -= 10.0;
+                    nodeTemp[i] = max(40.0, nodeTemp[i]);
+                    double cost = calculateCoolingCost(nodeTemp[i], currentTamb);
+                    totalCost += cost;
+                    totalPower += cost / 150.0;
+                }
 
                 if (coolingTime[i] >= 3) {
                     isCooling[i] = false;
                     coolingTime[i] = 0;
                     lastTempTime[i] = currentHour;
-
-                    // 충전소 점유 해제
                     for (int j = 0; j < totalCharging; j++) {
                         if (chargingX[j] == nodeX[i] && chargingY[j] == nodeY[i]) {
                             isOccupied[j] = false;
@@ -225,26 +230,8 @@ public:
                 }
             }
 
-            // 충전 처리 (유지 시간 3시간)
-            if (isCharging[i]) {
-                chargingTime[i]++;
-                if (chargingTime[i] >= 3) {
-                    nodeBattery[i] = 100.0;
-                    isCharging[i] = false;
-                    chargingTime[i] = 0;
-                    lastTempTime[i] = currentHour;
+            if (fireflyShowTime) continue;
 
-                    // 충전소 점유 해제
-                    for (int j = 0; j < totalCharging; j++) {
-                        if (chargingX[j] == nodeX[i] && chargingY[j] == nodeY[i]) {
-                            isOccupied[j] = false;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // 냉각 혹은 충전 시작 조건
             if (nodeTemp[i] >= 70 && !isCooling[i] && !isCharging[i]) {
                 int chargingIdx = findNearestCharging(i);
                 if (chargingIdx != -1) {
@@ -268,10 +255,9 @@ public:
             }
         }
 
-        // 하루 기준 기본 전력 비용 추가 (필요 시 주석 처리 가능)
         if (currentHour % 24 == 0) {
-            totalCost += 18000000;   // 예: 하루 전력 비용 1800만원
-            totalPower += 120000;    // 예: 하루 kWh 사용량 12만 kWh
+            totalCost += 18000000;
+            totalPower += 120000;
         }
     }
 
@@ -280,6 +266,7 @@ public:
         cout << "외부 온도: " << currentTamb << "도" << endl;
         cout << "총 비용: " << totalCost << "원" << endl;
         cout << "총 전력: " << totalPower << "kWh" << endl;
+        cout << "공연 수익: " << totalRevenue << "원" << endl;
 
         int charging = 0, cooling = 0, moving = 0;
         double avgBattery = 0, avgTemp = 0;
@@ -308,9 +295,7 @@ public:
 
         for (int h = 1; h <= hours; h++) {
             simulateOneHour();
-            if (h % 1 == 0) {
-                showStatus();
-            }
+            if (h % 1 == 0) showStatus();
         }
 
         cout << "\n=== 최종 결과 ===" << endl;
