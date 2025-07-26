@@ -7,59 +7,39 @@ using namespace std;
 
 class DataCenter {
 private:
-    char ground[100][100];  // 땅 모양
-    
-    // 노드 정보를 배열로 저장
-    int nodeX[240];      // 노드 x좌표
-    int nodeY[240];      // 노드 y좌표
-    double nodeBattery[240]; // 노드 전력 (소수점 지원)
-    double nodeTemp[240];    // 노드 온도 (소수점 지원)
-    double lastTempTime[240]; // 마지막 온도 계산 시점
-    bool isCharging[240];    // 충전 중인지
-    bool isCooling[240];     // 냉각 중인지
-    int chargingTime[240];   // 충전 시간 (시간)
-    int coolingTime[240];    // 냉각 시간 (시간)
-    int totalNodes;          // 실제 노드 개수
-    
-    // 충전소 정보를 배열로 저장
-    int chargingX[240];   // 충전소 x좌표
-    int chargingY[240];   // 충전소 y좌표
-    bool hasNode[240];    // 충전소에 노드가 있는지
-    bool isOccupied[240]; // 충전소가 사용 중인지
-    int totalCharging;    // 실제 충전소 개수
-    
-    // 시뮬레이션 변수
-    int currentHour;      // 현재 시간
-    double totalCost;     // 총 비용 (원)
-    double totalPower;    // 총 전력 사용량 (kWh)
-    
-    // 온도 계산 상수
-    static constexpr double TAMB = 25.0;  // 주변 온도 (℃)
-    static constexpr double K = 0.1;      // 냉각 계수 (1/시간)
-    
+    char ground[100][100];
+
+    int nodeX[240], nodeY[240];
+    double nodeBattery[240], nodeTemp[240], lastTempTime[240];
+    bool isCharging[240], isCooling[240];
+    int chargingTime[240], coolingTime[240], totalNodes;
+
+    int chargingX[240], chargingY[240];
+    bool hasNode[240], isOccupied[240];
+    int totalCharging;
+
+    int currentHour;
+    double totalCost, totalPower;
+
+    static constexpr double coolingConstant = 0.0003;  // 냉각 계수 (1/s)
+    static constexpr double mass = 15.0;              // kg
+    static constexpr double specificHeat = 900.0;     // J/kg·°C
+
+    double currentTamb = 25.0;
+
     void makeGround() {
-        // 1. 모든 곳을 풀밭으로
-        for (int i = 0; i < 100; i++) {
-            for (int j = 0; j < 100; j++) {
+        for (int i = 0; i < 100; i++)
+            for (int j = 0; j < 100; j++)
                 ground[i][j] = 'G';
-            }
-        }
-        
-        // 2. 십자 도로 만들기
-        for (int i = 35; i <= 65; i++) {
-            for (int j = 35; j < 65; j++) {
-                ground[i][j] = 'S';  // 도로
-            }
-        }
-        
-        // 3. 건물 만들기 (20x20)
-        for (int i = 40; i < 60; i++) {
-            for (int j = 40; j < 60; j++) {
-                ground[i][j] = 'B';  // 건물
-            }
-        }
-        
-        // 4. 세로/가로 도로
+
+        for (int i = 35; i <= 65; i++)
+            for (int j = 35; j < 65; j++)
+                ground[i][j] = 'S';
+
+        for (int i = 40; i < 60; i++)
+            for (int j = 40; j < 60; j++)
+                ground[i][j] = 'B';
+
         for (int i = 0; i < 100; i++) {
             for (int j = 30; j < 35; j++) {
                 ground[i][j] = 'S';
@@ -71,53 +51,37 @@ private:
             }
         }
     }
-    
+
     void makeNodes() {
         totalNodes = 0;
         totalCharging = 0;
-        
-        // 8개 구역의 경계
+
         int regions[8][4] = {
-            {0, 29, 0, 29},     // 좌상단
-            {0, 29, 35, 64},    // 상단
-            {0, 29, 70, 99},    // 우상단
-            {35, 64, 0, 29},    // 좌측
-            {35, 64, 70, 99},   // 우측
-            {70, 99, 0, 29},    // 좌하단
-            {70, 99, 35, 64},   // 하단
-            {70, 99, 70, 99}    // 우하단
+            {0, 29, 0, 29}, {0, 29, 35, 64}, {0, 29, 70, 99},
+            {35, 64, 0, 29}, {35, 64, 70, 99},
+            {70, 99, 0, 29}, {70, 99, 35, 64}, {70, 99, 70, 99}
         };
-        
-        // 각 구역별로 충전소 30개, 노드 10개 만들기
+
         for (int region = 0; region < 8; region++) {
-            int startI = regions[region][0];
-            int endI = regions[region][1];
-            int startJ = regions[region][2];
-            int endJ = regions[region][3];
-            
-            int chargingCount = 0;
-            int nodeCount = 0;
-            
-            // 해당 구역에 충전소 30개 배치
+            int startI = regions[region][0], endI = regions[region][1];
+            int startJ = regions[region][2], endJ = regions[region][3];
+            int chargingCount = 0, nodeCount = 0;
+
             for (int i = startI; i <= endI && chargingCount < 30; i += 3) {
                 for (int j = startJ; j <= endJ && chargingCount < 30; j += 4) {
                     if (ground[i][j] == 'G') {
-                        ground[i][j] = 'C';  // 충전소
-                        
-                        // 충전소 정보 저장
+                        ground[i][j] = 'C';
                         chargingX[totalCharging] = i;
                         chargingY[totalCharging] = j;
                         isOccupied[totalCharging] = false;
-                        
-                        // 처음 10개 충전소에는 노드 배치
+
                         if (nodeCount < 10) {
                             hasNode[totalCharging] = true;
-                            
                             nodeX[totalNodes] = i;
                             nodeY[totalNodes] = j;
-                            nodeBattery[totalNodes] = 100.0;  // 100% 전력
-                            nodeTemp[totalNodes] = 60.0;      // 60도
-                            lastTempTime[totalNodes] = 0.0;   // 온도 계산 시점 초기화
+                            nodeBattery[totalNodes] = 100.0;
+                            nodeTemp[totalNodes] = 60.0;
+                            lastTempTime[totalNodes] = 0.0;
                             isCharging[totalNodes] = false;
                             isCooling[totalNodes] = false;
                             chargingTime[totalNodes] = 0;
@@ -127,7 +91,7 @@ private:
                         } else {
                             hasNode[totalCharging] = false;
                         }
-                        
+
                         totalCharging++;
                         chargingCount++;
                     }
@@ -135,21 +99,17 @@ private:
             }
         }
     }
-    
-    // 두 점 사이의 거리 계산
+
     double getDistance(int x1, int y1, int x2, int y2) {
-        return sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
+        return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
     }
-    
-    // 가장 가까운 빈 충전소 찾기
+
     int findNearestCharging(int nodeIdx) {
-        double minDist = 999999;
+        double minDist = 1e9;
         int nearestIdx = -1;
-        
         for (int i = 0; i < totalCharging; i++) {
             if (!isOccupied[i]) {
-                double dist = getDistance(nodeX[nodeIdx], nodeY[nodeIdx], 
-                                        chargingX[i], chargingY[i]);
+                double dist = getDistance(nodeX[nodeIdx], nodeY[nodeIdx], chargingX[i], chargingY[i]);
                 if (dist < minDist) {
                     minDist = dist;
                     nearestIdx = i;
@@ -158,49 +118,57 @@ private:
         }
         return nearestIdx;
     }
-    
-    // 노드 이동 (G만 가능)
+
     void moveNode(int nodeIdx) {
         if (isCharging[nodeIdx] || isCooling[nodeIdx]) return;
-        
+
         int dx[] = {-2, -2, -2, -1, -1, -1, 0, 0, 1, 1, 1, 2, 2, 2};
         int dy[] = {-2, -1, 0, -2, -1, 0, -2, 2, -2, -1, 0, -2, -1, 0};
-        
+
         for (int tries = 0; tries < 50; tries++) {
             int dir = rand() % 14;
             int newX = nodeX[nodeIdx] + dx[dir];
             int newY = nodeY[nodeIdx] + dy[dir];
-            
-            if (newX >= 0 && newX < 100 && newY >= 0 && newY < 100) {
-                if (ground[newX][newY] == 'G') {
-                    nodeX[nodeIdx] = newX;
-                    nodeY[nodeIdx] = newY;
-                    break;
-                }
+            if (newX >= 0 && newX < 100 && newY >= 0 && newY < 100 && ground[newX][newY] == 'G') {
+                nodeX[nodeIdx] = newX;
+                nodeY[nodeIdx] = newY;
+                break;
             }
         }
     }
-    
-    // 물리적 온도 계산 함수
-    double calcTemperature(double t, double T0, double Tamb, double P, double k) {
-        double expTerm = exp(-k * t);
-        double Tt = Tamb + (P / k) * (1 - expTerm) + (T0 - Tamb) * expTerm;
-        return Tt;
+
+    double updateTemperature(double deltaTimeSec, double T_old, double Tamb, double powerW, double k) {
+        // deltaTimeSec: 시간 간격 초 단위
+        // powerW: W (J/s)
+        double heatIncrease = powerW * deltaTimeSec; // J
+        double deltaTempIncrease = heatIncrease / (mass * specificHeat);
+        double coolingEffect = k * (T_old - Tamb) * deltaTimeSec;
+        return T_old + deltaTempIncrease - coolingEffect;
     }
-    
-    // 노드별 열 발생량 계산 (2-5도/시간 상승을 위한 P값 계산)
-    double getHeatGeneration(int nodeIdx) {
-        // 2-5도 사이의 랜덤한 상승률을 위해 P값을 조정
-        // P = k * (목표온도상승률 + (T0 - Tamb) * k)
-        double targetRise = 2.0 + (rand() % 4); // 2, 3, 4, 5도 중 랜덤
-        double currentTemp = nodeTemp[nodeIdx];
-        
-        // 1시간 후 targetRise만큼 올라가도록 P값 계산
-        // 근사적으로: 새온도 ≈ 현재온도 + P - k*(현재온도 - Tamb)
-        double P = targetRise + K * (currentTemp - TAMB);
-        return P;
+
+    double getExternalTemperature(int hour) {
+        const double T_min = 18.0;
+        const double T_max = 33.0;
+        const int t_sunrise = 6;
+        const int t_sunset = 19;
+        const double k = 0.2;
+
+        int t = hour % 24;
+        if (t >= t_sunrise && t <= t_sunset) {
+            double ratio = (double)(t - t_sunrise) / (t_sunset - t_sunrise);
+            double sinTerm = pow(sin(M_PI * ratio), 1.5);
+            return T_min + (T_max - T_min) * sinTerm;
+        } else {
+            int t_effective = (t > t_sunset) ? (t - t_sunset) : (24 - t_sunset + t);
+            double T_sunset = T_min + (T_max - T_min) * pow(sin(M_PI), 1.5);
+            return T_min + (T_sunset - T_min) * exp(-k * t_effective);
+        }
     }
-    
+
+    double getHeatGenerationRate(double nodePower = 1.25, double efficiency = 0.15) {
+        return nodePower * efficiency * 1000; // kW → W (J/s)
+    }
+
 public:
     DataCenter() {
         srand(time(NULL));
@@ -210,39 +178,32 @@ public:
         totalCost = 0;
         totalPower = 0;
     }
-    
+
     void simulateOneHour() {
         currentHour++;
-        
+        currentTamb = getExternalTemperature(currentHour);
+
         for (int i = 0; i < totalNodes; i++) {
-            // 1. 배터리 소모 (4.17%) - 충전/냉각 중이 아닐 때만
             if (!isCharging[i] && !isCooling[i]) {
                 nodeBattery[i] -= 4.17;
                 if (nodeBattery[i] < 0) nodeBattery[i] = 0;
             }
-            
-            // 2. 온도 계산 - 냉각 중이 아닐 때만
+
             if (!isCooling[i]) {
-                double currentTime = currentHour;
-                double deltaTime = currentTime - lastTempTime[i];
-                
-                if (deltaTime >= 1.0) { // 1시간마다 온도 계산
-                    double P = getHeatGeneration(i); // 열 발생량
-                    double newTemp = calcTemperature(1.0, nodeTemp[i], TAMB, P, K);
-                    nodeTemp[i] = newTemp;
-                    lastTempTime[i] = currentTime;
+                double deltaTimeSec = (currentHour - lastTempTime[i]) * 3600;
+                if (deltaTimeSec >= 3600) {
+                    double powerRate = getHeatGenerationRate();
+                    nodeTemp[i] = updateTemperature(deltaTimeSec, nodeTemp[i], currentTamb, powerRate, coolingConstant);
+                    lastTempTime[i] = currentHour;
                 }
             }
-            
-            // 3. 냉각 처리 (1시간 소요)
+
             if (isCooling[i]) {
-                coolingTime[i]++;
-                if (coolingTime[i] >= 1) {  // 1시간 완료
-                    nodeTemp[i] = 40.0;  // 40도로 냉각 완료
-                    lastTempTime[i] = currentHour; // 온도 계산 시점 리셋
+                if (++coolingTime[i] >= 1) {
+                    nodeTemp[i] = 40.0;
+                    lastTempTime[i] = currentHour;
                     isCooling[i] = false;
                     coolingTime[i] = 0;
-                    // 충전소에서 나가기
                     for (int j = 0; j < totalCharging; j++) {
                         if (chargingX[j] == nodeX[i] && chargingY[j] == nodeY[i]) {
                             isOccupied[j] = false;
@@ -251,15 +212,12 @@ public:
                     }
                 }
             }
-            
-            // 4. 충전 처리 (1시간 소요)
+
             if (isCharging[i]) {
-                chargingTime[i]++;
-                if (chargingTime[i] >= 1) {  // 1시간 완료
-                    nodeBattery[i] = 100.0;  // 100%로 충전 완료
+                if (++chargingTime[i] >= 1) {
+                    nodeBattery[i] = 100.0;
                     isCharging[i] = false;
                     chargingTime[i] = 0;
-                    // 충전소에서 나가기
                     for (int j = 0; j < totalCharging; j++) {
                         if (chargingX[j] == nodeX[i] && chargingY[j] == nodeY[i]) {
                             isOccupied[j] = false;
@@ -268,8 +226,7 @@ public:
                     }
                 }
             }
-            
-            // 5. 온도가 70도 이상이면 냉각하러 가기
+
             if (nodeTemp[i] >= 70 && !isCooling[i] && !isCharging[i]) {
                 int chargingIdx = findNearestCharging(i);
                 if (chargingIdx != -1) {
@@ -277,78 +234,68 @@ public:
                     nodeY[i] = chargingY[chargingIdx];
                     isOccupied[chargingIdx] = true;
                     isCooling[i] = true;
-                    coolingTime[i] = 0;  // 냉각 시간 초기화
-                    totalCost += 625;     // 625원 추가
-                    totalPower += 4.167;  // 4.167kWh 추가
+                    coolingTime[i] = 0;
+                    totalCost += 625;
+                    totalPower += 4.167;
                 }
-            }
-            
-            // 6. 배터리가 30% 이하면 충전하러 가기
-            else if (nodeBattery[i] <= 30 && !isCharging[i] && !isCooling[i]) {
+            } else if (nodeBattery[i] <= 30 && !isCharging[i] && !isCooling[i]) {
                 int chargingIdx = findNearestCharging(i);
                 if (chargingIdx != -1) {
                     nodeX[i] = chargingX[chargingIdx];
                     nodeY[i] = chargingY[chargingIdx];
                     isOccupied[chargingIdx] = true;
                     isCharging[i] = true;
-                    chargingTime[i] = 0;  // 충전 시간 초기화
+                    chargingTime[i] = 0;
                 }
-            }
-            
-            // 7. 정상 상태면 이동
-            else if (!isCharging[i] && !isCooling[i]) {
+            } else if (!isCharging[i] && !isCooling[i]) {
                 moveNode(i);
             }
         }
-        
-        // 24시간마다 일일 전력 비용 추가
+
         if (currentHour % 24 == 0) {
-            totalCost += 18000000;    // 1800만원
-            totalPower += 120000;     // 12만kWh
+            totalCost += 18000000;
+            totalPower += 120000;
         }
     }
-    
+
     void showStatus() {
         cout << "\n=== " << currentHour << "시간 후 상태 ===" << endl;
+        cout << "외부 온도: " << currentTamb << "도" << endl;
         cout << "총 비용: " << totalCost << "원" << endl;
         cout << "총 전력: " << totalPower << "kWh" << endl;
-        
+
         int charging = 0, cooling = 0, moving = 0;
         double avgBattery = 0, avgTemp = 0;
-        
+
         for (int i = 0; i < totalNodes; i++) {
             if (isCharging[i]) charging++;
             else if (isCooling[i]) cooling++;
             else moving++;
-            
             avgBattery += nodeBattery[i];
             avgTemp += nodeTemp[i];
         }
-        
+
         cout << "충전 중인 노드: " << charging << "개" << endl;
         cout << "냉각 중인 노드: " << cooling << "개" << endl;
         cout << "이동 중인 노드: " << moving << "개" << endl;
-        cout << "평균 배터리: " << avgBattery/totalNodes << "%" << endl;
-        cout << "평균 온도: " << avgTemp/totalNodes << "도" << endl;
-        
-        // 상세 현황
-        cout << "\n[상세 현황]" << endl;
+        cout << "평균 배터리: " << avgBattery / totalNodes << "%" << endl;
+        cout << "평균 온도: " << avgTemp / totalNodes << "도" << endl;
         cout << "- 총 노드: " << totalNodes << "개" << endl;
-        cout << "- 충전소 사용률: " << (charging + cooling) << "/" << totalCharging 
+        cout << "- 충전소 사용률: " << (charging + cooling) << "/" << totalCharging
              << " (" << ((double)(charging + cooling) / totalCharging * 100) << "%)" << endl;
     }
-    
+
     void runSimulation(int hours) {
         cout << "시뮬레이션 시작!" << endl;
         showStatus();
-        
+
         for (int h = 1; h <= hours; h++) {
             simulateOneHour();
-            if (h % 1 == 0) {  // 1시간마다 상태 출력
+            if (h % 1 == 0) {
                 showStatus();
             }
         }
-        
+
         cout << "\n=== 최종 결과 ===" << endl;
         showStatus();
     }
@@ -356,7 +303,6 @@ public:
 
 int main() {
     DataCenter dc;
-    dc.runSimulation(72);  // 72시간 (3일) 시뮬레이션
-    
+    dc.runSimulation(12);
     return 0;
 }
