@@ -9,6 +9,13 @@ private:
     char ground[100][100];
     // G: Grass, N: Node, C: Charging Point, B: Building, S: Street
 
+    void setChargingPoint(int startI, int startJ, int endI, int endJ) {
+        for (int i = startI; i <= endI; i += 5) {
+            for (int j = startJ; j <= endJ; j += 6)
+                ground[i][j] = 'C';
+        }
+    }
+
     void initGround() {
         // ground 초기화
         for (int i = 0; i < 100; ++i) {
@@ -38,6 +45,15 @@ private:
                 ground[j][i] = 'S';
             }
         }
+
+        setChargingPoint(0, 0, 29, 29);
+        setChargingPoint(0, 35, 29, 64);
+        setChargingPoint(0, 70, 29, 99);
+        setChargingPoint(35, 0, 64, 29);
+        setChargingPoint(35, 70, 64, 99);
+        setChargingPoint(70, 0, 99, 29);
+        setChargingPoint(70, 35, 99, 64);
+        setChargingPoint(70, 70, 99, 99);
     }
 
 public:
