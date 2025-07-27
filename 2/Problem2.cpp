@@ -20,7 +20,7 @@ private:
 
     int currentHour;
     double totalCost, totalPower;
-    double totalRevenue; // ✅ 행사 수익
+    double totalRevenue;
 
     static constexpr double coolingConstant = 0.001;
     static constexpr double mass = 15.0;
