@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 using namespace std;
 
 class DataCenter {
@@ -10,7 +11,7 @@ private:
     char ground[100][100];
 
     int nodeX[240], nodeY[240];
-    double nodeBattery[240], nodeTemp[240], lastTempTime[240];
+    double nodeBattery[240], nodeTemp[240];
     bool isCharging[240], isCooling[240];
     int chargingTime[240], coolingTime[240], totalNodes;
 
@@ -19,12 +20,13 @@ private:
     int totalCharging;
 
     int currentHour;
-    int totalCost, totalPower;
-    int totalRevenue;
+    long long dailyCoolingCost;
+    long long dailyPerformanceRevenue;
+    int dayCount;
+    int totalCoolingEvents;
 
-    static constexpr double coolingConstant = 0.001;
-    static constexpr double mass = 15.0;
-    static constexpr double specificHeat = 900.0;
+    ofstream freezeCostFile;
+    ofstream performanceRevenueFile;
 
     const double hourlyTemperatures[24] = {
         13.0, 12.5, 12.0, 11.5, 11.0, 11.0,
@@ -88,8 +90,8 @@ private:
                             nodeX[totalNodes] = i;
                             nodeY[totalNodes] = j;
                             nodeBattery[totalNodes] = 100.0;
-                            nodeTemp[totalNodes] = 60.0;
-                            lastTempTime[totalNodes] = 0.0;
+                            // 초기 온도를 더욱 높게 설정 (60-75도)
+                            nodeTemp[totalNodes] = 60.0 + (rand() % 16); 
                             isCharging[totalNodes] = false;
                             isCooling[totalNodes] = false;
                             chargingTime[totalNodes] = 0;
@@ -145,25 +147,88 @@ private:
         }
     }
 
-    double calcTemperature(double deltaTime, double T0, double Tamb, double energyJ, double k) {
-        double expTerm = exp(-k * deltaTime * 3600);
-        double deltaT = energyJ / (mass * specificHeat);
-        double T1 = T0 + deltaT;
-        return Tamb + (T1 - Tamb) * expTerm;
-    }
-
     double getExternalTemperature(int hour) {
         return hourlyTemperatures[hour % 24];
     }
 
-    double getHeatGeneration(double nodePower = 1.25, double efficiency = 0.15) {
-        return nodePower * efficiency * 3600 * 1000;
+    // 강력한 열 발생과 약한 자연냉각으로 수정
+    void updateNodeTemperature(int nodeIdx) {
+        if (isCooling[nodeIdx]) return; // 인공냉각 중이면 온도 변화 없음
+        
+        // 1. 강력한 열 발생: 매시간 15-20도 상승
+        double heatIncrease = 15.0 + (rand() % 6); // 15~20도
+        
+        // 배터리 사용량이 높으면 추가 발열
+        if (nodeBattery[nodeIdx] > 50.0) {
+            heatIncrease += 5.0;
+        }
+        
+        // 이동 중일 때 더 많은 추가 발열
+        if (!isCharging[nodeIdx] && !isCooling[nodeIdx]) {
+            heatIncrease += 3.0;
+        }
+        
+        // 2. 매우 약한 자연냉각
+        double currentNodeTemp = nodeTemp[nodeIdx];
+        double naturalCooling = 0.0;
+        
+        if (currentNodeTemp > currentTamb) {
+            double tempDiff = currentNodeTemp - currentTamb;
+            
+            // 자연냉각을 거의 무력화
+            double coolingRate = 0.005 + (tempDiff * 0.001); // 매우 약한 냉각
+            
+            // 밤시간에도 미미한 보너스만
+            int hourOfDay = currentHour % 24;
+            if (hourOfDay >= 22 || hourOfDay <= 6) {
+                coolingRate *= 1.02; // 거의 의미없는 보너스
+            }
+            
+            naturalCooling = tempDiff * coolingRate;
+        }
+        
+        // 3. 최종 온도 변화 (거의 열 발생량과 동일)
+        double netTempChange = heatIncrease - naturalCooling;
+        nodeTemp[nodeIdx] += netTempChange;
+        
+        // 4. 온도 제한
+        if (nodeTemp[nodeIdx] < currentTamb) {
+            nodeTemp[nodeIdx] = currentTamb;
+        }
+        if (nodeTemp[nodeIdx] > 95.0) {
+            nodeTemp[nodeIdx] = 95.0;
+        }
+        
+        // 온도 변화 모니터링 (더 자주 출력)
+        if (rand() % 100 < 2) { // 2% 확률로 출력
+            cout << "노드 " << nodeIdx << ": 열+" << heatIncrease 
+                 << "도, 자연냉각-" << naturalCooling 
+                 << "도 → " << nodeTemp[nodeIdx] << "도" << endl;
+        }
+        
+        // 70도 근처 도달 시 알림
+        if (nodeTemp[nodeIdx] >= 65.0 && nodeTemp[nodeIdx] < 70.0) {
+            if (rand() % 50 < 1) { // 가끔 출력
+                cout << "⚠️ 노드 " << nodeIdx << " 고온 경고: " << nodeTemp[nodeIdx] << "도" << endl;
+            }
+        }
     }
 
-    double calculateCoolingCost(double nodeTemp, double externalTemp) {
-        double deltaT = max(0.0, nodeTemp - externalTemp);
-        const double costPerDegree = 0.7;
-        return deltaT * costPerDegree;
+    // 냉각 비용 함수 - 일별 20,000원 목표로 조정
+    long long calculateCoolingCost(double startTemp, double targetTemp) {
+        double coolingAmount = max(0.0, startTemp - targetTemp);
+        
+        // 현재 약 127만원/일이 나오므로 1/64 수준으로 조정
+        // 127만원 ÷ 64 ≈ 20,000원
+        const double costPerDegree = 0.8; // 50에서 0.8로 대폭 감소
+        long long cost = static_cast<long long>(coolingAmount * costPerDegree);
+        
+        // 최소 비용을 낮춤 (냉각이 발생하면 최소 10원)
+        if (cost > 0 && cost < 10) {
+            cost = 10;
+        }
+        
+        return cost;
     }
 
 public:
@@ -172,9 +237,22 @@ public:
         makeGround();
         makeNodes();
         currentHour = 0;
-        totalCost = 0.0;
-        totalPower = 0.0;
-        totalRevenue = 0.0;
+        dayCount = 0;
+        dailyCoolingCost = 0;
+        dailyPerformanceRevenue = 0;
+        totalCoolingEvents = 0;
+
+        freezeCostFile.open("freezeCost.data");
+        performanceRevenueFile.open("performanceRevenue.data");
+        if (!freezeCostFile.is_open() || !performanceRevenueFile.is_open()) {
+            cerr << "파일 열기 실패!" << endl;
+            exit(1);
+        }
+    }
+
+    ~DataCenter() {
+        if (freezeCostFile.is_open()) freezeCostFile.close();
+        if (performanceRevenueFile.is_open()) performanceRevenueFile.close();
     }
 
     void simulateOneHour() {
@@ -182,48 +260,27 @@ public:
         currentTamb = getExternalTemperature(currentHour);
 
         bool fireflyShowTime = ((currentHour % 24) >= 20 && (currentHour % 24) <= 21);
+
+        // 공연 수익 계산
         if (fireflyShowTime) {
-            int attendees = 150 + rand() % 101;  // 150~250명
+            int attendees = 50 + rand() % 35;
             int ticketPrice = 10000;
-            totalRevenue += attendees * ticketPrice;
+            dailyPerformanceRevenue += static_cast<long long>(attendees) * ticketPrice;
 
             int goodsPrice = 25000;
-            totalRevenue += int(attendees * 0.2) * goodsPrice;
+            dailyPerformanceRevenue += static_cast<long long>(attendees * 0.2) * goodsPrice;
         }
 
         for (int i = 0; i < totalNodes; i++) {
-            if (!isCharging[i] && !isCooling[i]) {
-                nodeBattery[i] -= 4.17;
-                nodeBattery[i] = max(0.0, nodeBattery[i]);
-            }
-
-            if (!isCooling[i]) {
-                double deltaTime = currentHour - lastTempTime[i];
-                if (deltaTime >= 1.0) {
-                    double Q = getHeatGeneration(i);
-                    nodeTemp[i] = calcTemperature(deltaTime, nodeTemp[i], currentTamb, Q, coolingConstant);
-                    lastTempTime[i] = currentHour;
-                }
-            }
-
-            if (isCooling[i]) {
-                if (fireflyShowTime) {
-                    coolingTime[i]++;
-                    nodeTemp[i] -= 2.0;
-                    nodeTemp[i] = max(40.0, nodeTemp[i]);
-                } else {
-                    coolingTime[i]++;
-                    nodeTemp[i] -= 10.0;
-                    nodeTemp[i] = max(40.0, nodeTemp[i]);
-                    double cost = calculateCoolingCost(nodeTemp[i], currentTamb);
-                    totalCost += cost;
-                    totalPower += cost / 150.0;
-                }
-
-                if (coolingTime[i] >= 3) {
-                    isCooling[i] = false;
-                    coolingTime[i] = 0;
-                    lastTempTime[i] = currentHour;
+            // 충전 처리
+            if (isCharging[i]) {
+                chargingTime[i]++;
+                if (chargingTime[i] >= 1) {
+                    nodeBattery[i] = 100.0;
+                    isCharging[i] = false;
+                    chargingTime[i] = 0;
+                    
+                    // 충전소 해제
                     for (int j = 0; j < totalCharging; j++) {
                         if (chargingX[j] == nodeX[i] && chargingY[j] == nodeY[i]) {
                             isOccupied[j] = false;
@@ -231,20 +288,64 @@ public:
                         }
                     }
                 }
+                continue;
             }
 
+            // 냉각 처리
+            if (isCooling[i]) {
+                coolingTime[i]++;
+                if (coolingTime[i] >= 1) {
+                    double startTemp = nodeTemp[i];
+                    nodeTemp[i] = 40.0;
+                    isCooling[i] = false;
+                    coolingTime[i] = 0;
+                    
+                    // 냉각 비용 계산
+                    long long coolingCost = calculateCoolingCost(startTemp, 40.0);
+                    dailyCoolingCost += coolingCost;
+                    totalCoolingEvents++;
+                    
+                    cout << "[ " << (currentHour % 24) << "시 ] ❄️  노드 " << i << " 인공냉각 완료: " 
+                         << startTemp << "도 → 40도 (비용: " << coolingCost << "원)" << endl;
+                    
+                    // 충전소 해제
+                    for (int j = 0; j < totalCharging; j++) {
+                        if (chargingX[j] == nodeX[i] && chargingY[j] == nodeY[i]) {
+                            isOccupied[j] = false;
+                            break;
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // 배터리 감소
+            nodeBattery[i] -= 4.17;
+            if (nodeBattery[i] < 0) nodeBattery[i] = 0;
+
+            // 온도 상승
+            updateNodeTemperature(i);
+
+            // 공연 시간에는 노드 이동 제한
             if (fireflyShowTime) continue;
 
-            if (nodeTemp[i] >= 70 && !isCooling[i] && !isCharging[i]) {
+            // 온도가 65도 이상일 때 인공냉각 (기준 낮춤)
+            if (nodeTemp[i] >= 65.0) {
                 int chargingIdx = findNearestCharging(i);
                 if (chargingIdx != -1) {
+                    cout << "[ " << (currentHour % 24) << "시 ] 🔥 노드 " << i << " 인공냉각 시작: " 
+                         << nodeTemp[i] << "도 (65도 기준 초과)" << endl;
                     nodeX[i] = chargingX[chargingIdx];
                     nodeY[i] = chargingY[chargingIdx];
                     isOccupied[chargingIdx] = true;
                     isCooling[i] = true;
                     coolingTime[i] = 0;
+                } else {
+                    cout << "⚠️ 노드 " << i << " 냉각 필요하지만 충전소 부족! (온도: " << nodeTemp[i] << "도)" << endl;
                 }
-            } else if (nodeBattery[i] <= 30 && !isCharging[i] && !isCooling[i]) {
+            }
+            // 배터리가 낮으면 충전소로 이동
+            else if (nodeBattery[i] <= 30.0) {
                 int chargingIdx = findNearestCharging(i);
                 if (chargingIdx != -1) {
                     nodeX[i] = chargingX[chargingIdx];
@@ -253,61 +354,118 @@ public:
                     isCharging[i] = true;
                     chargingTime[i] = 0;
                 }
-            } else if (!isCharging[i] && !isCooling[i]) {
+            }
+            // 일반 이동
+            else {
                 moveNode(i);
             }
         }
 
+        // 하루가 끝나면 데이터 기록
         if (currentHour % 24 == 0) {
-            totalCost += 18000000;
-            totalPower += 120000;
+            dayCount++;
+            
+            cout << "\n### " << dayCount << "일차 종료 ###" << endl;
+            cout << "인공냉각 이벤트: " << totalCoolingEvents << "회" << endl;
+            cout << "일일 냉각 비용: " << dailyCoolingCost << "원" << endl;
+            
+            // 자연냉각 효율성 계산
+            double artificialCoolingRate = (double)totalCoolingEvents / totalNodes * 100;
+            double naturalCoolingRate = 100.0 - artificialCoolingRate;
+            
+            cout << "🌿 자연냉각 비율: " << naturalCoolingRate << "%" << endl;
+            cout << "⚡ 인공냉각 비율: " << artificialCoolingRate << "%" << endl;
+            
+            if (naturalCoolingRate >= 90.0) {
+                cout << "✅ 목표 달성! 90% 이상 자연냉각으로 비용 절약!" << endl;
+            } else {
+                cout << "🎯 목표: 90% 자연냉각 (현재: " << naturalCoolingRate << "%)" << endl;
+            }
+
+            // 파일에 기록
+            freezeCostFile << dayCount << " " << dailyCoolingCost << "\n";
+            freezeCostFile.flush(); // 즉시 파일에 쓰기
+            performanceRevenueFile << dayCount << " " << dailyPerformanceRevenue << "\n";
+            performanceRevenueFile.flush(); // 즉시 파일에 쓰기
+
+            // 리셋
+            dailyCoolingCost = 0;
+            dailyPerformanceRevenue = 0;
+            totalCoolingEvents = 0;
         }
     }
 
     void showStatus() {
-        cout << "\n=== " << currentHour << "시간 후 상태 ===" << endl;
+        cout << "\n=== " << dayCount << "일째 상태 ===" << endl;
+        cout << "현재 시간: " << (currentHour % 24) << "시" << endl;
         cout << "외부 온도: " << currentTamb << "도" << endl;
-        cout << "총 비용: " << totalCost << "원" << endl;
-        cout << "총 전력: " << totalPower << "kWh" << endl;
-        cout << "공연 수익: " << totalRevenue << "원" << endl;
+        cout << "오늘 냉각 비용: " << dailyCoolingCost << "원" << endl;
+        cout << "오늘 공연 수익: " << dailyPerformanceRevenue << "원" << endl;
 
         int charging = 0, cooling = 0, moving = 0;
+        int highTempNodes = 0, criticalTempNodes = 0, naturalCooledNodes = 0;
         double avgBattery = 0, avgTemp = 0;
+        double minBattery = 100, maxBattery = 0;
+        double minTemp = 100, maxTemp = 0;
 
         for (int i = 0; i < totalNodes; i++) {
             if (isCharging[i]) charging++;
             else if (isCooling[i]) cooling++;
             else moving++;
+            
+            if (nodeTemp[i] >= 60.0) highTempNodes++;
+            if (nodeTemp[i] >= 65.0) criticalTempNodes++;
+            if (nodeTemp[i] < 60.0) naturalCooledNodes++;
+            
             avgBattery += nodeBattery[i];
             avgTemp += nodeTemp[i];
+            
+            minBattery = min(minBattery, nodeBattery[i]);
+            maxBattery = max(maxBattery, nodeBattery[i]);
+            minTemp = min(minTemp, nodeTemp[i]);
+            maxTemp = max(maxTemp, nodeTemp[i]);
         }
 
         cout << "충전 중인 노드: " << charging << "개" << endl;
-        cout << "냉각 중인 노드: " << cooling << "개" << endl;
+        cout << "인공냉각 중인 노드: " << cooling << "개" << endl;
         cout << "이동 중인 노드: " << moving << "개" << endl;
-        cout << "평균 배터리: " << avgBattery / totalNodes << "%" << endl;
-        cout << "평균 온도: " << avgTemp / totalNodes << "도" << endl;
-        cout << "- 총 노드: " << totalNodes << "개" << endl;
-        cout << "- 충전소 사용률: " << (charging + cooling) << "/" << totalCharging
+        cout << "🌡️ 자연냉각 중인 노드(<60도): " << naturalCooledNodes << "개 (" 
+             << (naturalCooledNodes * 100 / totalNodes) << "%)" << endl;
+        cout << "🔥 고온 노드(60-64도): " << (highTempNodes - criticalTempNodes) << "개" << endl;
+        cout << "⚠️ 위험 노드(65도+): " << criticalTempNodes << "개" << endl;
+        cout << "평균 배터리: " << (avgBattery / totalNodes) << "% (범위: " 
+             << minBattery << "% ~ " << maxBattery << "%)" << endl;
+        cout << "평균 온도: " << (avgTemp / totalNodes) << "도 (범위: " 
+             << minTemp << "도 ~ " << maxTemp << "도)" << endl;
+        cout << "총 노드: " << totalNodes << "개" << endl;
+        cout << "충전소 사용률: " << (charging + cooling) << "/" << totalCharging
              << " (" << ((double)(charging + cooling) / totalCharging * 100) << "%)" << endl;
     }
 
     void runSimulation(int hours) {
-        cout << "시뮬레이션 시작!" << endl;
+        cout << "🚀 데이터센터 시뮬레이션 시작!" << endl;
+        cout << "총 노드: " << totalNodes << "개, 충전소: " << totalCharging << "개" << endl;
         showStatus();
 
         for (int h = 1; h <= hours; h++) {
             simulateOneHour();
-            if (h % 1 == 0) showStatus();
+            if (h % 24 == 0) {
+                cout << "\n=== " << h / 24 << "일째 결과 ===" << endl;
+                showStatus();
+            }
         }
 
-        cout << "\n=== 최종 결과 ===" << endl;
+        cout << "\n🎯 시뮬레이션 완료!" << endl;
         showStatus();
+        
+        cout << "\n📊 데이터 파일이 생성되었습니다:" << endl;
+        cout << "- freezeCost.data: 일별 냉각 비용" << endl;
+        cout << "- performanceRevenue.data: 일별 공연 수익" << endl;
     }
 };
 
 int main() {
     DataCenter dc;
-    dc.runSimulation(24);
+    dc.runSimulation(24 * 10);  // 10일 시뮬레이션
     return 0;
 }
