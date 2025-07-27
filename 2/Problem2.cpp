@@ -19,8 +19,8 @@ private:
     int totalCharging;
 
     int currentHour;
-    double totalCost, totalPower;
-    double totalRevenue;
+    int totalCost, totalPower;
+    int totalRevenue;
 
     static constexpr double coolingConstant = 0.001;
     static constexpr double mass = 15.0;
@@ -183,9 +183,12 @@ public:
 
         bool fireflyShowTime = ((currentHour % 24) >= 20 && (currentHour % 24) <= 21);
         if (fireflyShowTime) {
-            int attendees = 100 + rand() % 51;  // 100~150명
-            double ticketPrice = 1000.0;
+            int attendees = 150 + rand() % 101;  // 150~250명
+            int ticketPrice = 10000;
             totalRevenue += attendees * ticketPrice;
+
+            int goodsPrice = 25000;
+            totalRevenue += int(attendees * 0.2) * goodsPrice;
         }
 
         for (int i = 0; i < totalNodes; i++) {
