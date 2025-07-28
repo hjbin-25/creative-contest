@@ -36,10 +36,18 @@ private:
     int totalCharging;
     // 현재 시뮬레이션 진행 시간 (시간 단위)
     int currentHour;
-    // 하루 동안 누적된 냉각 비용 합계
-    long long dailyCoolingCost;
-    // 하루 동안 누적된 공연 수익 합계
-    long long dailyPerformanceRevenue;
+    // 누적된 냉각 비용 합계 (초기화하지 않고 계속 누적)
+    long long cumulativeCoolingCost;
+    // 누적된 공연 수익 합계 (초기화하지 않고 계속 누적)
+    long long cumulativePerformanceRevenue;
+    // 월별 냉각 비용 (매월 초기화되어 해당 월의 비용만 저장)
+    long long monthlyCoolingCost;
+    // 월별 공연 수익 (매월 초기화되어 해당 월의 수익만 저장)
+    long long monthlyPerformanceRevenue;
+    // 누적된 절약 금액 (9600000*30 - 월별 냉각비의 누적)
+    long long cumulativeSavings;
+    // 누적된 총 이익 (절약 금액 + 부가 수익의 누적)
+    long long cumulativeTotalProfit;
     // 하루 동안 발생한 총 냉각 이벤트 수
     int totalCoolingEvents;
     // 시뮬레이션에서 경과한 달 수 (30일 단위로 증가)
@@ -48,6 +56,10 @@ private:
     ofstream freezeCostFile;
     // 공연 수익 기록용 파일 스트림
     ofstream performanceRevenueFile;
+    // 누적 절약 금액 기록용 파일 스트림
+    ofstream savingsFile;
+    // 누적 총 이익 기록용 파일 스트림
+    ofstream totalProfitFile;
     // 24시간 동안 시간별 외부 온도 데이터 (시간대별 섭씨 온도)
     const double hourlyTemperatures[24] = {
         13.0, 12.5, 12.0, 11.5, 11.0, 11.0,
@@ -229,14 +241,21 @@ public:
         makeGround();
         makeNodes();
         currentHour = 0;
-        dailyCoolingCost = 0;
-        dailyPerformanceRevenue = 0;
+        cumulativeCoolingCost = 0;
+        cumulativePerformanceRevenue = 0;
+        monthlyCoolingCost = 0;
+        monthlyPerformanceRevenue = 0;
+        cumulativeSavings = 0;
+        cumulativeTotalProfit = 0;
         totalCoolingEvents = 0;
         monthCount = 0;
 
         freezeCostFile.open("freezeCost.data");
         performanceRevenueFile.open("performanceRevenue.data");
-        if (!freezeCostFile.is_open() || !performanceRevenueFile.is_open()) {
+        savingsFile.open("savings.data");
+        totalProfitFile.open("totalProfit.data");
+        if (!freezeCostFile.is_open() || !performanceRevenueFile.is_open() || 
+            !savingsFile.is_open() || !totalProfitFile.is_open()) {
             cerr << "파일 열기 실패!" << endl;
             exit(1);
         }
@@ -245,6 +264,8 @@ public:
     ~DataCenter() {
         if (freezeCostFile.is_open()) freezeCostFile.close();
         if (performanceRevenueFile.is_open()) performanceRevenueFile.close();
+        if (savingsFile.is_open()) savingsFile.close();
+        if (totalProfitFile.is_open()) totalProfitFile.close();
     }
 
     // 1시간 단위 시뮬레이션 진행
@@ -258,10 +279,14 @@ public:
         if (fireflyShowTime) {
             int attendees = 75 + rand() % 31;
             int ticketPrice = 10000;
-            dailyPerformanceRevenue += static_cast<long long>(attendees) * ticketPrice;
+            long long showRevenue = static_cast<long long>(attendees) * ticketPrice;
+            cumulativePerformanceRevenue += showRevenue;
+            monthlyPerformanceRevenue += showRevenue;
 
             int goodsPrice = 25000;
-            dailyPerformanceRevenue += static_cast<long long>(attendees * 0.2) * goodsPrice;
+            long long goodsRevenue = static_cast<long long>(attendees * 0.2) * goodsPrice;
+            cumulativePerformanceRevenue += goodsRevenue;
+            monthlyPerformanceRevenue += goodsRevenue;
         }
 
         for (int i = 0; i < totalNodes; i++) {
@@ -293,7 +318,8 @@ public:
                     coolingTime[i] = 0;
 
                     long long coolingCost = calculateCoolingCost(startTemp, 40.0);
-                    dailyCoolingCost += coolingCost;
+                    cumulativeCoolingCost += coolingCost;
+                    monthlyCoolingCost += coolingCost;
                     totalCoolingEvents++;
 
                     for (int j = 0; j < totalCharging; j++) {
@@ -342,17 +368,35 @@ public:
             }
         }
 
-        // 1달 단위(30일)로 비용 및 수익 기록
+        // 1달 단위(30일)로 누적 비용 및 수익 기록 (초기화하지 않음)
         if (currentHour % (24 * 30) == 0) {
             monthCount++;
-            freezeCostFile << monthCount << " " << dailyCoolingCost << "\n";
+            
+            // 기존 누적 데이터 기록
+            freezeCostFile << monthCount << " " << cumulativeCoolingCost << "\n";
             freezeCostFile.flush();
-            performanceRevenueFile << monthCount << " " << dailyPerformanceRevenue << "\n";
+            performanceRevenueFile << monthCount << " " << cumulativePerformanceRevenue << "\n";
             performanceRevenueFile.flush();
+            
+            // 월별 절약 금액 계산 및 누적 (다른 데이터센터의 월별 냉각비 288,000,000 - 실제 월별 냉각비)
+            long long monthlySaving = 288000000LL - monthlyCoolingCost;
+            cumulativeSavings += monthlySaving;
+            savingsFile << monthCount << " " << cumulativeSavings << "\n";
+            savingsFile.flush();
+            
+            // 누적 총 이익 계산 (누적 절약 금액 + 누적 부가 수익)
+            cumulativeTotalProfit = cumulativeSavings + cumulativePerformanceRevenue;
+            totalProfitFile << monthCount << " " << cumulativeTotalProfit << "\n";
+            totalProfitFile.flush();
 
-            dailyCoolingCost = 0;
-            dailyPerformanceRevenue = 0;
-            totalCoolingEvents = 0;
+            // 누적 데이터이므로 초기화하지 않음
+            // cumulativeCoolingCost = 0;
+            // cumulativePerformanceRevenue = 0;
+            
+            // 월별 데이터는 초기화
+            monthlyCoolingCost = 0;
+            monthlyPerformanceRevenue = 0;
+            totalCoolingEvents = 0;  // 이벤트 수만 초기화
         }
     }
 
@@ -409,6 +453,6 @@ public:
 
 int main() {
     DataCenter dc;
-    dc.runSimulation(24 * 3600);  // 60일(2달) 시뮬레이션
+    dc.runSimulation(24 * 30 * 120);  // 120개월(10년) 시뮬레이션
     return 0;
 }
