@@ -388,10 +388,6 @@ public:
             cumulativeTotalProfit = cumulativeSavings + cumulativePerformanceRevenue;
             totalProfitFile << monthCount << " " << cumulativeTotalProfit << "\n";
             totalProfitFile.flush();
-
-            // 누적 데이터이므로 초기화하지 않음
-            // cumulativeCoolingCost = 0;
-            // cumulativePerformanceRevenue = 0;
             
             // 월별 데이터는 초기화
             monthlyCoolingCost = 0;
@@ -425,19 +421,6 @@ public:
             minTemp = min(minTemp, nodeTemp[i]);
             maxTemp = max(maxTemp, nodeTemp[i]);
         }
-
-        // cout << "충전 중인 노드: " << charging << "개" << endl;
-        // cout << "인공냉각 중인 노드: " << cooling << "개" << endl;
-        // cout << "이동 중인 노드: " << moving << "개" << endl;
-        // cout << "자연냉각 중인 노드(<60도): " << naturalCooledNodes << "개 ("
-        //      << (naturalCooledNodes * 100 / totalNodes) << "%)" << endl;
-        // cout << "평균 배터리: " << (avgBattery / totalNodes) << "% (범위: "
-        //      << minBattery << "% ~ " << maxBattery << "%)" << endl;
-        // cout << "평균 온도: " << (avgTemp / totalNodes) << "도 (범위: "
-        //      << minTemp << "도 ~ " << maxTemp << "도)" << endl;
-        // cout << "총 노드: " << totalNodes << "개" << endl;
-        // cout << "충전소 사용률: " << (charging + cooling) << "/" << totalCharging
-        //      << " (" << ((double)(charging + cooling) / totalCharging * 100) << "%)" << endl;
     }
 
     // 지정 시간만큼 시뮬레이션 실행
@@ -453,6 +436,5 @@ public:
 
 int main() {
     DataCenter dc;
-    dc.runSimulation(24 * 30 * 120);  // 120개월(10년) 시뮬레이션
-    return 0;
+    dc.runSimulation(24 * 30 * 120);
 }
